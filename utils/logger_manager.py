@@ -1,7 +1,6 @@
 import glob
 import logging
-import shutil
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
 
@@ -55,65 +54,6 @@ class Logger:
     def get_logger(name: str = None) -> logging.Logger:
         return logging.getLogger(name or __name__)
 
-    @staticmethod
-    def _close_all_handlers():
-        root_logger = logging.getLogger()
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-            if hasattr(handler, 'close'):
-                handler.close()
-
-    def _close_current_log_file(self):
-        if hasattr(self, 'file_handler'):
-            self.file_handler.close()
-            logging.getLogger().removeHandler(self.file_handler)
-
-    def clean_old_logs(self, days_to_keep: int = 7) -> List[str]:
-
-        if not hasattr(self, 'log_dir'):
-            return []
-
-        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
-        deleted_files = []
-
-        log_pattern = str(self.log_dir / "app_*.log")
-        for log_file in glob.glob(log_pattern):
-            file_path = Path(log_file)
-
-            if file_path.exists():
-                file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
-                if file_time < cutoff_date:
-                    try:
-                        file_path.unlink()
-                        deleted_files.append(str(file_path))
-                    except OSError as e:
-                        logging.error(
-                            f"Не удалось удалить файл {file_path}: {e}")
-
-        return deleted_files
-
-    def remove_logs_directory(self) -> bool:
-        """Полностью удаляет папку логов"""
-        if not hasattr(self, 'log_dir'):
-            return False
-
-        try:
-            # Закрываем все обработчики
-            self._close_all_handlers()
-
-            # Удаляем папку целиком
-            if self.log_dir.exists():
-                shutil.rmtree(self.log_dir)
-                print(f"Папка логов {self.log_dir} удалена")
-
-            self._initialized = False
-
-            return True
-
-        except Exception as e:
-            print(f"Ошибка при удалении папки логов: {e}")
-            return False
-
     def get_log_files(self) -> List[Path]:
         if not hasattr(self, 'log_dir'):
             return []
@@ -154,43 +94,80 @@ def get_logger(name: str = None) -> logging.Logger:
     return _logger_manager.get_logger(name)
 
 
-def clean_old_logs(days_to_keep: int = 7) -> List[str]:
-    """Удалить старые логи"""
-    return _logger_manager.clean_old_logs(days_to_keep)
+def clean_logs_directory(
+        logs_dir: str = "logs",
+        max_files: int = 10,
+        keep_latest: int = 3,
+        file_pattern: str = "*",
+        dry_run: bool = False
+):
+    logs_path = Path(logs_dir)
+
+    if not logs_path.exists():
+        print(f"Директория {logs_dir} не существует")
+        return
+
+    if not logs_path.is_dir():
+        print(f"{logs_dir} не является директорией")
+        return
+
+    files = list(logs_path.glob(file_pattern))
+    files = [f for f in files if f.is_file()]
+
+    print(f"Найдено {len(files)} файлов в {logs_dir}")
+
+    if len(files) <= max_files:
+        print(
+            f"Количество файлов ({len(files)}) "
+            f"не превышает лимит ({max_files})."
+            f"Очистка не требуется.")
+        return
+
+    # Сортируем файлы по времени модификации (от новых к старым)
+    files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+
+    # Определяем файлы для удаления
+    files_to_keep = files[:keep_latest]
+    files_to_delete = files[keep_latest:]
+
+    print(f"\nБудет сохранено {len(files_to_keep)} файлов:")
+    for file in files_to_keep:
+        mtime = file.stat().st_mtime
+        print(f"  ✓ {file.name} (изменен: {format_time(mtime)})")
+
+    print(f"\nБудет удалено {len(files_to_delete)} файлов:")
+    for file in files_to_delete:
+        mtime = file.stat().st_mtime
+        print(f"  ✗ {file.name} (изменен: {format_time(mtime)})")
+
+    if dry_run:
+        print("\n[DRY RUN] Файлы не были удалены")
+        return
+
+    if files_to_delete:
+        confirm = input(
+            f"\nУдалить {len(files_to_delete)} файлов? "
+            f"(y/N, да/Нет): ").strip().lower()
+        if confirm not in ['y', 'yes', 'да']:
+            print("Отменено")
+            return
+
+    deleted_count = 0
+    for file in files_to_delete:
+        try:
+            file.unlink()
+            print(f"Удален: {file.name}")
+            deleted_count += 1
+        except Exception as e:
+            print(f"Ошибка при удалении {file.name}: {e}")
+
+    print(
+        f"\nГотово! Удалено {deleted_count} файлов, "
+        f"осталось {len(files_to_keep)}")
 
 
-def clean_all_logs() -> bool:
-    """Удалить все логи"""
-    return _logger_manager.remove_logs_directory()
-
-
-def get_log_info() -> dict:
-    """Получить информацию о логах"""
-    return _logger_manager.get_log_info()
-
-
-# Пример использования
-if __name__ == "__main__":
-    # Создаем logger
-    logger = get_logger("example")
-
-    # Логируем сообщения
-    logger.info("Приложение запущено")
-    logger.debug("Отладочная информация")
-    logger.warning("Предупреждение")
-    logger.error("Ошибка")
-
-    # Получаем информацию о логах
-    print("Информация о логах:")
-    log_info = get_log_info()
-    print(f"Папка логов: {log_info['log_dir']}")
-    print(f"Количество файлов: {log_info['total_files']}")
-    print(f"Общий размер: {log_info['total_size_mb']} MB")
-
-    # Удаляем старые логи (старше 7 дней)
-    deleted = clean_old_logs(days_to_keep=7)
-    print(f"Удалено старых логов: {len(deleted)}")
-
-    # Для демонстрации - удаляем все логи (раскомментируйте при необходимости)
-    # deleted_all = clean_all_logs()
-    # print(f"Удалено всех логов: {len(deleted_all)}")
+def format_time(timestamp: float) -> str:
+    """Форматирует timestamp в читаемый вид"""
+    import datetime
+    return datetime.datetime.fromtimestamp(timestamp).strftime(
+        "%Y-%m-%d %H:%M:%S")

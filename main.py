@@ -1,6 +1,9 @@
-from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, InnerPoliticsStats
-from utils.input_parsers import InputParser
+from modules.run_main import RunMain
+from utils.logger_manager import clean_logs_directory
 
-text1 = InputParser.parse_data_from_str()
-text2 = InputParser.parse_data_from_str()
-Economy = EconomyStats.from_stats_text(text1 + '\n' + text2)
+
+if __name__ == "__main__":
+    clean_logs_directory()
+    runner = RunMain()
+    runner.set_running_mode()
+    runner.run()
