@@ -47,7 +47,7 @@ class BasicStatsFunctions:
             processing_production, processing_usage))
 
         return min((
-                               industry_coefficient_base - industry_coefficient_loss) * decrement,
+                           industry_coefficient_base - industry_coefficient_loss) * decrement,
                    100)
 
     @staticmethod
@@ -63,7 +63,7 @@ class BasicStatsFunctions:
             Tuple[float, float, float]:
         """Считает базовые параметры промышленности"""
         mean_value = (industry_coefficient + civil_usage + (
-                    standardization / 1.35)) / 2.5
+                standardization / 1.35)) / 2.5
         std_dev = 100 / civil_usage + 0.2
 
         possible_values = [random.gauss(mean_value, std_dev) for _ in
@@ -161,7 +161,7 @@ class BasicStatsFunctions:
             securities)
 
         stock = (overproduction_effects * 6 * (
-                    1 + biome_richness / 1000)) if agriculture_efficiency >= 75 else 0
+                1 + biome_richness / 1000)) if agriculture_efficiency >= 75 else 0
 
         # Calculate food security using a parabolic function
         food_security = InbuiltFunctions.parabola(agriculture_efficiency / 10,

@@ -17,7 +17,7 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
     def calculate_cultural_coefficient(cultural_level: int,
                                        egocentrism_development: float) -> float:
         return max(0.0, 0.025 * cultural_level - 0.105 + (
-                    egocentrism_development / 100))
+                egocentrism_development / 100))
 
     @staticmethod
     def calculate_contentment_coefficients(contentment: int) -> Tuple[
@@ -39,7 +39,7 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         biome_factor = max(0.05,
                            (100 - biome_richness) / (110 - biome_richness))
         development_factor = max(0.1, (100 - agriculture_development) / (
-                    110 - agriculture_development))
+                110 - agriculture_development))
 
         base_cost = C * (biome_factor + development_factor) * K
         return max(base_cost / 1000, 1)
@@ -127,7 +127,7 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         """Считает (де)бафф прироста в зависимости от СХ"""
         return ((((2 * agriculture_development * agriculture_efficiency) /
                   (
-                              agriculture_development + agriculture_efficiency)) - food_security_spotter) ** 0.5) / 8
+                          agriculture_development + agriculture_efficiency)) - food_security_spotter) ** 0.5) / 8
 
     @staticmethod
     def calculate_income_coefficient_based_on_social_decline(
@@ -145,7 +145,7 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
             food_diversity: float) -> float:
         """Любопытная формула, возможно на подумать"""
         return InbuiltFunctions.gaussian_kernel(-food_diversity / 10) * (
-                    1.9 / 0.4)
+                1.9 / 0.4)
 
     @staticmethod
     def calculate_population_decrement_coefficient(
@@ -173,12 +173,12 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
                              population_count: int) -> float:
         """Считает доход с налогов (Legacy - возможно надо будет изменить)"""
         universal_tax_income = 1.9882 * (universal_tax / (
-                    (8 + universal_tax) * 10)) * population_count / 1000  # УН
+                (8 + universal_tax) * 10)) * population_count / 1000  # УН
         excise_income = excise / (excise + 100) * 2000  # Акцизы
         coefficient = population_count * small_enterprise_percent / 1000 - population_count * small_enterprise_percent / 1000 * 0.4
         small_enterprise_tax_income = small_enterprise_tax * coefficient / 3000  # Налог на мелкое предпринимательство
         large_enterprise_tax_income = (
-                                                  large_enterprise_tax / 10) * large_enterprise_count
+                                              large_enterprise_tax / 10) * large_enterprise_count
 
         return universal_tax_income + excise_income + small_enterprise_tax_income + large_enterprise_tax_income + additions
 
@@ -238,14 +238,14 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         )
 
         efficiency_factor = (
-                    trade_efficiency / 100) if trade_usage <= trade_potential else (
-                    trade_efficiency / 150)
+                trade_efficiency / 100) if trade_usage <= trade_potential else (
+                trade_efficiency / 150)
         base_income = (
                           trade_usage / 38 if trade_usage <= trade_potential else trade_usage / 58) + quality_factor * efficiency_factor - trade_wastes
 
         if trade_usage > trade_potential:
             base_income *= (valgery / 100) + (1 / forex) * (
-                        1 - (valgery / 100))
+                    1 - (valgery / 100))
 
         return base_income
 
@@ -254,7 +254,7 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
             agriculture_efficiency: float, civil_efficiency: float) -> float:
         """Считает вклад СХ и промышленности в доход"""
         return 1 + ((agriculture_efficiency / 1000) + (
-                    civil_efficiency / 1000))
+                civil_efficiency / 1000))
 
     @staticmethod
     def calculate_inflation_factor(inflation: float) -> float:
@@ -293,13 +293,13 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         poor_jobless_weight = 1 if poor_jobless_condition else 0
 
         value_80_90 = 1.5 * poor_jobless_weight + 1.17 * (
-                    1 - poor_jobless_weight)
+                1 - poor_jobless_weight)
         value_above_90 = 1.7 * (1 - int(
             poor_level > 0 and jobless_level > 0)) + 1.18 * int(
             poor_level > 0 and jobless_level > 0)
 
         return (
-                    1 - weight_80_90 - weight_above_90) + weight_80_90 * value_80_90 + weight_above_90 * value_above_90
+                1 - weight_80_90 - weight_above_90) + weight_80_90 * value_80_90 + weight_above_90 * value_above_90
 
     @staticmethod
     def calculate_money_income_simple_boost(stability: int) -> float:

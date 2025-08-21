@@ -56,6 +56,8 @@ class RunMain:
                 start_skip_cls = BasicStartSkipMove
                 skip_move_cls = BasicSkipMove
                 finalize_cls = BasicFinalizer
+            case RunningMode.MODE_ATTERIUM:
+                pass
 
             case _:
                 print(self.mode)

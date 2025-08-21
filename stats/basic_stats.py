@@ -794,23 +794,22 @@ class AgricultureStats(StatsBase):
     @override
     def _get_field_groups() -> Dict[str, List[str]]:
         return {
-            "Основные параметры": [
-                'population_count', 'decrement_coefficient', 'current_budget',
-                'stability', 'inflation'
+            "Распределение отраслей": [
+                'husbandry', 'livestock', 'others'
             ],
-            "Налоги и доходы": [
-                'universal_tax', 'excise', 'additions',
-                'small_enterprise_tax', 'large_enterprise_tax'
+            "Природные условия": [
+                'biome_richness', 'overprotective_effects'
             ],
-            "Расходы": [
-                'gov_wastes', 'med_wastes', 'war_wastes', 'other_wastes'
+            "Обеспеченности": [
+                'securities'
             ],
-            "Торговля": [
-                'trade_rank', 'trade_usage', 'trade_efficiency',
-                'trade_wastes',
-                'high_quality_percent', 'mid_quality_percent',
-                'low_quality_percent',
-                'valgery', 'branches_count', 'branches_efficiency'
+            "Экономические показатели": [
+                'agriculture_wastes', 'expected_wastes',
+                'income_from_resources'
+            ],
+            "Качественные показатели": [
+                'food_diversity', 'food_security', 'agriculture_efficiency',
+                'agriculture_development'
             ]
         }
 
@@ -818,30 +817,19 @@ class AgricultureStats(StatsBase):
     @override
     def _get_field_names() -> Dict[str, str]:
         return {
-            'population_count': 'Население',
-            'decrement_coefficient': 'УНЧС (0-5)',
-            'current_budget': 'Текущий размер казны',
-            'stability': 'Экономическая стабильность (%)',
-            'inflation': 'Инфляция (%)',
-            'universal_tax': 'УН',
-            'excise': 'Акцизы',
-            'additions': 'Дополнительные средства',
-            'small_enterprise_tax': 'Налог на мелкое предпринимательство',
-            'large_enterprise_tax': 'Налог на крупных предпринимателей',
-            'gov_wastes': 'Расходы на государство (инфраструктура логистика гос.аппарат ресурсодобыча)',
-            'med_wastes': 'Расходы на социальную сферу (образование здравоохранение охрана соц.сфера наука)',
-            'war_wastes': 'Расходы на военную сферу (армия военное_производство флот)',
-            'other_wastes': 'Дополнительные расходы (субсидирование внешние оккупация)',
-            'trade_rank': 'Торговый ранг',
-            'trade_usage': 'Число используемых торговых путей',
-            'trade_efficiency': 'Торговая эффективность (%)',
-            'trade_wastes': 'Торговые издержки',
-            'high_quality_percent': 'Процент товаров высокого качества',
-            'mid_quality_percent': 'Процент товаров среднего качества',
-            'low_quality_percent': 'Процент товаров низкого качества',
-            'valgery': 'Вальжерия',
-            'branches_count': 'Количество филиалов',
-            'branches_efficiency': 'Эффективность филиалов (%)'
+            'husbandry': 'Земледелие (%)',
+            'livestock': 'Животноводство (%)',
+            'others': 'Иное (%)',
+            'biome_richness': 'Богатство биомов (%)',
+            'overprotective_effects': 'Эффекты от сверхплодородных земель',
+            'securities': 'Обеспеченности (рабочие, технологии, орудия труда)',
+            'agriculture_wastes': 'Траты (ед.вал.)',
+            'expected_wastes': 'Ожидаемые траты (ед.вал.)',
+            'income_from_resources': 'Доход от редкой и дорогой еды (ед.вал.)',
+            'food_diversity': 'Пищевое разнообразие (%)',
+            'food_security': 'Обеспеченность едой',
+            'agriculture_efficiency': 'Эффективность сельского хозяйства (%)',
+            'agriculture_development': 'Развитость сельского хозяйства (%)'
         }
 
     @staticmethod

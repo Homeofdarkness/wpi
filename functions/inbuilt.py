@@ -1,4 +1,6 @@
 import math
+from typing import Tuple
+
 
 class InbuiltFunctions:
 
@@ -22,9 +24,13 @@ class InbuiltFunctions:
         return coefficient * exponent
 
     @staticmethod
-    def count_proba_params(points: list, probabilities: list) -> tuple[float, float]:
+    def count_proba_params(
+            points: list,
+            probabilities: list
+    ) -> Tuple[float, float]:
         expected_value = sum(x * p for x, p in zip(points, probabilities))
-        variance = sum(((x - expected_value) ** 2) * p for x, p in zip(points, probabilities))
+        variance = sum(((x - expected_value) ** 2) * p for x, p in
+                       zip(points, probabilities))
 
         return expected_value, variance
 

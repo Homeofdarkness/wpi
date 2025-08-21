@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Optional
 
+from stats.atterium_stats import AtteriumEconomyStats, AtteriumIndustrialStats, \
+    AtteriumInnerPoliticsStats, AtteriumAgricultureStats
 from stats.basic_stats import EconomyStats, IndustrialStats, \
     AgricultureStats, InnerPoliticsStats
 from utils.input_parsers import InputParser
@@ -96,6 +98,58 @@ class BasicStartSkipMove(StartSkipMoveBase):
         print("=== НАРОД ===")
         people_data = InputParser.parse_data_from_str()
         InnerPolitics = InnerPoliticsStats.from_stats_text(
+            government_data + '\n' + people_data)
+
+        return {
+            "Economy": Economy,
+            "Industry": Industry,
+            "Agriculture": Agriculture,
+            "InnerPolitics": InnerPolitics
+        }
+
+
+class AtteriumStartSkipMove(BasicStartSkipMove):
+    @classmethod
+    def _parse_creator_mode_input(cls):
+        Economy = AtteriumEconomyStats.from_user_input(
+            "=== ВВОД ДАННЫХ ЭКОНОМИКИ ===")
+        Industry = AtteriumIndustrialStats.from_user_input(
+            "=== ВВОД ДАННЫХ ПРОМЫШЛЕННОСТИ ===")
+        Agriculture = AtteriumAgricultureStats.from_user_input(
+            "=== ВВОД ДАННЫХ СЕЛЬСКОГО ХОЗЯЙСТВА ===")
+        InnerPolitics = AtteriumInnerPoliticsStats.from_user_input(
+            "=== ВВОД ДАННЫХ ВНУТРЕННЕЙ ПОЛИТИКИ ===")
+
+        return {
+            "Economy": Economy,
+            "Industry": Industry,
+            "Agriculture": Agriculture,
+            "InnerPolitics": InnerPolitics
+        }
+
+    @classmethod
+    def _parse_skipper_mode_input(cls):
+        print("=== ЭКОНОМИКА ===")
+        economy_data = InputParser.parse_data_from_str()
+        print("=== ТОРГОВЛЯ ===")
+        trade_data = InputParser.parse_data_from_str()
+        Economy = AtteriumEconomyStats.from_stats_text(
+            economy_data + '\n' + trade_data)
+
+        print("=== ПРОМЫШЛЕННОСТЬ ===")
+        industry_data = InputParser.parse_data_from_str()
+        Industry = AtteriumIndustrialStats.from_stats_text(industry_data)
+
+        print("=== СЕЛЬСКОЕ ХОЗЯЙСТВО ===")
+        agriculture_data = InputParser.parse_data_from_str()
+        Agriculture = AtteriumAgricultureStats.from_stats_text(
+            agriculture_data)
+
+        print("=== ГОСУДАРСТВО ===")
+        government_data = InputParser.parse_data_from_str()
+        print("=== НАРОД ===")
+        people_data = InputParser.parse_data_from_str()
+        InnerPolitics = AtteriumInnerPoliticsStats.from_stats_text(
             government_data + '\n' + people_data)
 
         return {

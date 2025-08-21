@@ -1,13 +1,13 @@
-from abc import abstractmethod
-from typing import Optional, List, Any, Dict
 import re
+from abc import ABC, abstractmethod
+from typing import Optional, List, Any, Dict
 
 import pydantic
 
 from utils.input_parsers import InputParser
 
 
-class StatsBase(pydantic.BaseModel):
+class StatsBase(pydantic.BaseModel, ABC):
 
     @abstractmethod
     def debug(self):
