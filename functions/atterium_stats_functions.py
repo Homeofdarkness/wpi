@@ -20,22 +20,23 @@ class AtteriumStatsFunctions(BaseInMoveFunctions):
         return base_income + pure_income * efficiency_factor - trade_wastes
 
     @staticmethod
-    def calculate_society_decline(contentment: int,
-                                  government_trust: float,
-                                  many_children_traditions: int,
-                                  sexual_asceticism: float,
-                                  egocentrism_development: float,
-                                  capitalism_decay: float,
-                                  education_level: int,
-                                  erudition_will: int,
-                                  cultural_level: int,
-                                  violence_tendency: float,
-                                  unemployment_rate: float,
-                                  grace_of_the_highest: int,
-                                  commitment_to_cause: int,
-                                  departure_from_truths: int,
-                                  equality: float,
-                                  restoration_spirit: float) -> float:
+    def calculate_society_decline(
+            contentment: int,
+            government_trust: float,
+            many_children_traditions: int,
+            sexual_asceticism: float,
+            egocentrism_development: float,
+            capitalism_decay: float,
+            education_level: int,
+            erudition_will: int,
+            cultural_level: int,
+            violence_tendency: float,
+            unemployment_rate: float,
+            grace_of_the_highest: int,
+            commitment_to_cause: int,
+            departure_from_truths: int,
+            equality: float
+    ) -> float:
         """Считает упадок общества"""
         positive_factors = (
                 contentment * 0.04 +
@@ -47,8 +48,7 @@ class AtteriumStatsFunctions(BaseInMoveFunctions):
                 cultural_level * 0.04 +
                 grace_of_the_highest * 0.8 +
                 commitment_to_cause * 0.14 +
-                equality * 0.14 +
-                restoration_spirit * 0.074
+                equality * 0.16
         )
 
         negative_factors = (

@@ -1,7 +1,9 @@
-from functions.base import BaseInMoveFunctions
+from typing import Tuple, List
+
+from functions.basic_in_move_functions import BasicInMoveFunctions
 
 
-class AtteriumInMoveFunctions(BaseInMoveFunctions):
+class AtteriumInMoveFunctions(BasicInMoveFunctions):
 
     @staticmethod
     def calculate_plan_efficiency_spotter(
@@ -13,10 +15,8 @@ class AtteriumInMoveFunctions(BaseInMoveFunctions):
         return trade_dependencies * 0.5
 
     @staticmethod
-    def calculate_huge_economy_buff(restoration_spirit: float,
-                                    egocentrism_development: float) -> float:
-        return max(1.0, (
-                egocentrism_development * 0.2 + restoration_spirit * 0.15) / 10)
+    def calculate_huge_economy_buff(egocentrism_development: float) -> float:
+        return max(1.0, (egocentrism_development * 0.25) / 10)
 
     @staticmethod
     def calculate_agriculture_base_wastes(biome_richness: float,

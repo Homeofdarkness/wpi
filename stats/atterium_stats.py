@@ -285,6 +285,8 @@ class AtteriumAgricultureStats(StatsBase):
     securities: List[float]
     agriculture_wastes: float
     agriculture_deceases: float
+    agriculture_natural_deceases: float
+    income_from_resources: float
     food_diversity: float
     expected_wastes: float = None
 
@@ -335,8 +337,9 @@ class AtteriumAgricultureStats(StatsBase):
 Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
 Обеспеченности:
 Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами, орудиями труда - {self.securities[2]}%
-Ожидаемые траты - хз ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - хз
-Хвори сельхоза - {self.agriculture_deceases}                                                            Пищевое разнообразие - {self.food_diversity}%
+Ожидаемые траты - хз ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - хз%
+Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
+Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                  Пищевое разнообразие - {self.food_diversity}% 
 Эффективность сельского хозяйства - хз%                    Развитость сельского хозяйства - хз% ```
 """
         return result_string
@@ -349,8 +352,9 @@ class AtteriumAgricultureStats(StatsBase):
 Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
 Обеспеченности:
 Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами, орудиями труда - {self.securities[2]}%
-Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - {round(self.food_security, 3)} 
-Хвори сельхоза - {self.agriculture_deceases}                                                            Пищевое разнообразие - {self.food_diversity}%
+Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - {round(self.food_security, 3)}% 
+Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
+Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                  Пищевое разнообразие - {self.food_diversity}% 
 Эффективность сельского хозяйства - {round(self.agriculture_efficiency)}%                    Развитость сельского хозяйства - {round(self.agriculture_development, 2)}% ```
 """
         return result_string
@@ -369,10 +373,12 @@ class AtteriumAgricultureStats(StatsBase):
                 'securities'
             ],
             "Экономические показатели": [
-                'agriculture_wastes', 'expected_wastes'
+                'agriculture_wastes', 'expected_wastes',
+                'income_from_resources'
             ],
             "Качественные показатели": [
-                'agriculture_deceases', 'food_diversity'
+                'agriculture_deceases', 'agriculture_natural_deceases',
+                'food_diversity'
             ]
         }
 
@@ -388,8 +394,13 @@ class AtteriumAgricultureStats(StatsBase):
             'securities': 'Обеспеченности (рабочие, технологии, орудия труда)',
             'agriculture_wastes': 'Траты (ед.вал.)',
             'expected_wastes': 'Ожидаемые траты (ед.вал.)',
-            'agriculture_deceases': 'Хвори сельхоза',
-            'food_diversity': 'Пищевое разнообразие (%)'
+            'agriculture_deceases': 'Хвори сельхоза (%)',
+            'agriculture_natural_deceases': 'Ненастья и естественные проблемы сельхоза (%)',
+            'income_from_resources': 'Доход от редкой и дорогой еды (ед.вал.)',
+            'food_diversity': 'Пищевое разнообразие (%)',
+            'food_security': 'Обеспеченность едой',
+            'agriculture_efficiency': 'Эффективность сельского хозяйства (%)',
+            'agriculture_development': 'Развитость сельского хозяйства (%)'
         }
 
     @staticmethod
@@ -408,6 +419,8 @@ class AtteriumAgricultureStats(StatsBase):
             ],
             'agriculture_wastes': r'Траты - ([\d.]+) ед\.вал',
             'agriculture_deceases': r'Хвори сельхоза - ([\d.]+)',
+            'agriculture_natural_deceases': r'Ненастья и естественные проблемы сельхоза - ([\d.]+)',
+            'income_from_resources': r'Доход от редкой и дорогой еды - ([\d.]+) ед\.вал',
             'food_diversity': r'Пищевое разнообразие - ([\d.]+)%',
             'expected_wastes': r'Ожидаемые траты - ([\d.]+) ед\.вал'
         }

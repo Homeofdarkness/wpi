@@ -710,6 +710,8 @@ class AgricultureStats(StatsBase):
     overprotective_effects: int
     securities: list
     agriculture_wastes: float
+    agriculture_deceases: float
+    agriculture_natural_deceases: float
     income_from_resources: float
     food_diversity: float
     expected_wastes: float = None
@@ -768,9 +770,10 @@ class AgricultureStats(StatsBase):
 Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
 Обеспеченности:
 Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами, орудиями труда - {self.securities[2]}%
-Ожидаемые траты - хз ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - хз
-Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал
-Эффективность сельского хозяйства - хз%                    Развитость сельского хозяйства - хз% ```
+Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - хз%
+Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
+Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                        Пищевое разнообразие - {self.food_diversity}%
+Эффективность сельского хозяйства - хз                    Развитость сельского хозяйства - хз% ```
 """
 
         return result_string
@@ -783,7 +786,8 @@ class AgricultureStats(StatsBase):
 Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
 Обеспеченности:
 Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами, орудиями труда - {self.securities[2]}%
-Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - {self.food_security} 
+Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - {round(self.food_security, 3)}%
+Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
 Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                        Пищевое разнообразие - {self.food_diversity}%
 Эффективность сельского хозяйства - {round(self.agriculture_efficiency)}%                    Развитость сельского хозяйства - {round(self.agriculture_development, 2)}% ```
 """
@@ -808,8 +812,8 @@ class AgricultureStats(StatsBase):
                 'income_from_resources'
             ],
             "Качественные показатели": [
-                'food_diversity', 'food_security', 'agriculture_efficiency',
-                'agriculture_development'
+                'agriculture_deceases', 'agriculture_natural_deceases',
+                'food_diversity'
             ]
         }
 
@@ -825,6 +829,8 @@ class AgricultureStats(StatsBase):
             'securities': 'Обеспеченности (рабочие, технологии, орудия труда)',
             'agriculture_wastes': 'Траты (ед.вал.)',
             'expected_wastes': 'Ожидаемые траты (ед.вал.)',
+            'agriculture_deceases': 'Хвори сельхоза (%)',
+            'agriculture_natural_deceases': 'Ненастья и естественные проблемы сельхоза (%)',
             'income_from_resources': 'Доход от редкой и дорогой еды (ед.вал.)',
             'food_diversity': 'Пищевое разнообразие (%)',
             'food_security': 'Обеспеченность едой',
@@ -847,6 +853,8 @@ class AgricultureStats(StatsBase):
                 r'Удобрениями, средствами, орудиями труда - ([\d.]+)%'
             ],
             'agriculture_wastes': r'Траты - ([\d.]+) ед\.вал',
+            'agriculture_deceases': r'Хвори сельхоза - ([\d.]+)',
+            'agriculture_natural_deceases': r'Ненастья и естественные проблемы сельхоза - ([\d.]+)',
             'income_from_resources': r'Доход от редкой и дорогой еды - ([\d.]+) ед\.вал',
             'food_diversity': r'Пищевое разнообразие - ([\d.]+)%',
             'expected_wastes': r'Ожидаемые траты - ([\d.]+) ед\.вал'

@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from stats.atterium_stats import (
+    AtteriumEconomyStats, AtteriumIndustrialStats,
+    AtteriumAgricultureStats, AtteriumInnerPoliticsStats
+)
 from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, \
     InnerPoliticsStats
 from utils.logger_manager import get_logger
@@ -40,3 +44,11 @@ class BasicFinalizer(FinalizerBase):
         logger.info(self.InnerPolitics)
 
         return True
+
+
+@dataclass
+class AtteriumFinalizer(BasicFinalizer):
+    Economy: AtteriumEconomyStats
+    Industry: AtteriumIndustrialStats
+    Agriculture: AtteriumAgricultureStats
+    InnerPolitics: AtteriumInnerPoliticsStats
