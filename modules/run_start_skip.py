@@ -9,6 +9,7 @@ from stats.atterium_stats import (
 )
 from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, \
     InnerPoliticsStats
+from stats.stats_base import StatsBase
 from utils.input_parsers import InputParser
 from utils.logger_manager import get_logger
 
@@ -16,10 +17,11 @@ from utils.logger_manager import get_logger
 logger = get_logger("Run Start Skip Move")
 
 # Type variables for generic typing
-T_Economy = TypeVar('T_Economy', bound=EconomyStats)
-T_Industry = TypeVar('T_Industry', bound=IndustrialStats)
-T_Agriculture = TypeVar('T_Agriculture', bound=AgricultureStats)
-T_InnerPolitics = TypeVar('T_InnerPolitics', bound=InnerPoliticsStats)
+T_Economy = TypeVar('T_Economy', bound=StatsBase)
+T_Industry = TypeVar('T_Industry', bound=StatsBase)
+T_Agriculture = TypeVar('T_Agriculture', bound=StatsBase)
+T_InnerPolitics = TypeVar('T_InnerPolitics', bound=StatsBase)
+T_float = TypeVar('T_float', bound=float)
 
 
 class GameModes(StrEnum):
@@ -31,10 +33,10 @@ class GameModes(StrEnum):
 @dataclass
 class StatsConfig:
     """Конфигурация для создания статистик"""
-    economy_class: Type[EconomyStats]
-    industry_class: Type[IndustrialStats]
-    agriculture_class: Type[AgricultureStats]
-    inner_politics_class: Type[InnerPoliticsStats]
+    economy_class: Type[StatsBase]
+    industry_class: Type[StatsBase]
+    agriculture_class: Type[StatsBase]
+    inner_politics_class: Type[StatsBase]
 
 
 @dataclass
@@ -168,7 +170,7 @@ class DataInputHandler:
 
 @dataclass
 class StartSkipMoveBase(ABC, Generic[
-    T_Economy, T_Industry, T_Agriculture, T_InnerPolitics]):
+    T_Economy, T_Industry, T_Agriculture, T_InnerPolitics, T_float]):
     """Базовый абстрактный класс для инициализации игры"""
     mode: Optional[GameModes] = None
 

@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Optional, Dict, Type, Any, Protocol
-from unittest import runner
 
 from modules.run_finalize import BasicFinalizer, AtteriumFinalizer
 from modules.run_skip_move import BasicSkipMove, AtteriumSkipMove

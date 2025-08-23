@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import Tuple, Optional
 
 from functions.atterium_in_move_functions import AtteriumInMoveFunctions
 from functions.base import BaseInMoveFunctions
@@ -43,12 +43,12 @@ class SkipMoverBase(ABC):
     Industry: IndustrialStats
     Agriculture: AgricultureStats
     InnerPolitics: InnerPoliticsStats
-    waste: int = 0
+    waste: Optional[float] = None
     InMoveFunctions: BaseInMoveFunctions = field(
         default_factory=BaseInMoveFunctions)
 
     @abstractmethod
-    def skip_move(self) -> None:
+    def skip_move(self):
         """Основной метод пропуска хода"""
         raise NotImplementedError()
 
@@ -59,6 +59,7 @@ class SkipMoverBase(ABC):
 
     def _calculate_total_wastes(self, logistic_wastes: float) -> float:
         """Вычисляет общие расходы"""
+        self.waste = self.waste or float(input('Траты на ход - '))
         return (sum(self.Economy.med_wastes) + sum(self.Economy.gov_wastes) +
                 sum(self.Economy.war_wastes) + sum(self.Economy.other_wastes) +
                 logistic_wastes + self.waste + self.Agriculture.agriculture_wastes -
@@ -129,7 +130,7 @@ class SkipMoverBase(ABC):
 
         return buffed_stability, boost
 
-    def _update_education(self) -> None:
+    def _update_education(self):
         """Обновляет уровень образования"""
         expected_knowledge = min(
             self.InMoveFunctions.calculate_knowledge(
@@ -154,7 +155,7 @@ class SkipMoverBase(ABC):
             self.InnerPolitics.education_level += increase
             logger.debug(f"Образованность повышена на {increase}")
 
-    def _update_military_equipment(self) -> None:
+    def _update_military_equipment(self):
         """Обновляет военное оборудование"""
         equipment_increase = (self.Economy.war_wastes[1] *
                               self.InMoveFunctions.calculate_military_equipment_coefficient(
@@ -173,7 +174,7 @@ class BasicSkipMove(SkipMoverBase):
     InMoveFunctions: BasicInMoveFunctions = field(
         default_factory=BasicInMoveFunctions)
 
-    def skip_move(self) -> None:
+    def skip_move(self):
         """Выполняет пропуск хода с базовой логикой"""
         try:
             # Основные расчеты
@@ -221,7 +222,7 @@ class BasicSkipMove(SkipMoverBase):
         )
 
     def _calculate_income_and_expenses(self, results: CalculationResults,
-                                       logistic_wastes: float) -> None:
+                                       logistic_wastes: float):
         """Рассчитывает все виды доходов и расходов"""
         # Расчет сельского хозяйства
         self._calculate_agriculture_stats(
@@ -243,7 +244,7 @@ class BasicSkipMove(SkipMoverBase):
         self._calculate_total_income(logistic_wastes)
 
     def _calculate_agriculture_stats(self,
-                                     food_security_spotter: float) -> None:
+                                     food_security_spotter: float):
         """Рассчитывает статистики сельского хозяйства"""
         self.Agriculture.expected_wastes = self.InMoveFunctions.calculate_agriculture_wastes(
             self.Economy.population_count, self.Agriculture.securities,
@@ -263,11 +264,11 @@ class BasicSkipMove(SkipMoverBase):
                 self.Agriculture.overprotective_effects))
 
         self.Agriculture.food_security *= 1 - (
-                    self.Agriculture.agriculture_deceases / 100)
+                self.Agriculture.agriculture_deceases / 100)
         self.Agriculture.food_security *= 1 - (
-                    self.Agriculture.agriculture_natural_deceases / 100)
+                self.Agriculture.agriculture_natural_deceases / 100)
 
-    def _calculate_base_income(self, results: CalculationResults) -> None:
+    def _calculate_base_income(self, results: CalculationResults):
         """Рассчитывает базовый доход"""
         income_multipliers = [
             self.InMoveFunctions.calculate_goods_coefficient(
@@ -303,7 +304,7 @@ class BasicSkipMove(SkipMoverBase):
 
         logger.debug(f"Итоговый расчетный прирост - {self.Economy.income}")
 
-    def _calculate_industry_stats(self) -> None:
+    def _calculate_industry_stats(self):
         """Рассчитывает промышленные показатели"""
         self.Industry.consumption_of_goods = (
             self.InMoveFunctions.calculate_consumption_of_goods(
@@ -321,7 +322,7 @@ class BasicSkipMove(SkipMoverBase):
             self.Industry.max_potential, self.Industry.expected_wastes)
 
     def _calculate_tax_income(self, results: CalculationResults,
-                              logistic_wastes: float) -> None:
+                              logistic_wastes: float):
         """Рассчитывает налоговый доход"""
         small_enterprise_tax_spotter = (1.1 if self.Economy.gov_wastes[0] >
                                                results.expected_infrastructure_waste else 0.85)
@@ -354,7 +355,7 @@ class BasicSkipMove(SkipMoverBase):
 
         logger.debug(f"Итоговый налоговый доход - {self.Economy.tax_income}")
 
-    def _calculate_trade_income(self) -> None:
+    def _calculate_trade_income(self):
         """Рассчитывает доходы от торговли и форекс"""
         # Расчет курса валют
         self.Economy.forex = self.InMoveFunctions.calculate_forex_course(
@@ -382,7 +383,7 @@ class BasicSkipMove(SkipMoverBase):
 
         logger.debug(f"Торговый доход - {self.Economy.trade_income}")
 
-    def _calculate_total_income(self, logistic_wastes: float) -> None:
+    def _calculate_total_income(self, logistic_wastes: float):
         """Рассчитывает общий доход"""
         total_wastes = self._calculate_total_wastes(logistic_wastes)
         logger.debug(f"Общие расходы - {total_wastes}")
@@ -405,7 +406,7 @@ class BasicSkipMove(SkipMoverBase):
         logger.debug(f"Итоговый доход - {self.Economy.money_income}")
 
     def _finalize_calculations(self, logistic_discount: float,
-                               contentment_coefficient_2: float) -> None:
+                               contentment_coefficient_2: float):
         """Завершает расчеты хода"""
         # Обновляем бюджет
         self.Economy.prev_budget = self.Economy.current_budget
@@ -476,7 +477,7 @@ class AtteriumSkipMove(BasicSkipMove):
         default_factory=AtteriumInMoveFunctions)
 
     def _calculate_tax_income(self, results: CalculationResults,
-                              logistic_wastes: float) -> None:
+                              logistic_wastes: float):
         """Переопределенный расчет налогового дохода для Atterium"""
         # Рассчитываем специфичные для Atterium модификаторы
         (trade_spotter_adrian, income_spotter_adrian) = (
@@ -538,7 +539,7 @@ class AtteriumSkipMove(BasicSkipMove):
 
         logger.debug(f"Atterium налоговый доход - {self.Economy.tax_income}")
 
-    def _calculate_trade_income(self) -> None:
+    def _calculate_trade_income(self):
         """Переопределенный расчет торгового дохода для Atterium"""
         # Базовый расчет
         super()._calculate_trade_income()
@@ -561,3 +562,26 @@ class AtteriumSkipMove(BasicSkipMove):
         self.Economy.branches_income *= branches_spotter_power
 
         logger.debug(f"Atterium торговый доход - {self.Economy.trade_income}")
+
+    def _calculate_total_income(self, logistic_wastes: float):
+        """Рассчитывает общий доход"""
+        total_wastes = self._calculate_total_wastes(logistic_wastes)
+        logger.debug(f"Общие расходы - {total_wastes}")
+
+        # Суммируем все доходы
+        self.Economy.money_income = (
+                self.Economy.tax_income + self.Economy.trade_income +
+                self.Economy.branches_income + self.Industry.industry_income +
+                total_wastes
+        )
+
+        # Применяем модификаторы
+        collaboration_factor = (
+            self.InMoveFunctions.calculate_money_income_collaboration_factor(
+                self.Agriculture.agriculture_efficiency,
+                self.Industry.civil_efficiency))
+        inflation_factor = self.InMoveFunctions.calculate_inflation_factor(
+            self.Economy.inflation)
+
+        self.Economy.money_income *= collaboration_factor * inflation_factor
+        logger.debug(f"Итоговый доход - {self.Economy.money_income}")

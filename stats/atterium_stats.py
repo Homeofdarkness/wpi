@@ -97,7 +97,7 @@ class AtteriumEconomyStats(StatsBase):
 ДОХОДЫ - + хз ед.вал в ход
 УН - {self.universal_tax}                    Акцизы - {self.excise}                        Дополнительные средства - +{self.additions} ед.вал
 СиРМБ - {self.freedom_and_efficiency_of_small_business}                         Вложения крупных компаний - {self.investment_of_large_companies}
-Эффективность плана - {self.plan_efficiency}%
+Эфисп приказов Цесаркии - {self.plan_efficiency}%
 Содержание инфраструктуры - {self.gov_wastes[0]}                                  логистики - {self.gov_wastes[1]}                       
 федеративное - {self.gov_wastes[2]}                 республиканское - {self.gov_wastes[3]}                                   ресурсодобычи - {self.gov_wastes[4]} 
 Траты на образование - {self.med_wastes[0]}               здравоохранение - {self.med_wastes[1]}               охранные учреждения - {self.med_wastes[2]} 
@@ -125,7 +125,7 @@ class AtteriumEconomyStats(StatsBase):
 ДОХОДЫ - + {round(self.tax_income, 3)} ед.вал в ход
 УН - {self.universal_tax}                    Акцизы - {self.excise}                        Дополнительные средства - +{self.additions} ед.вал
 СиРМБ - {self.freedom_and_efficiency_of_small_business}                         Вложения крупных компаний - {self.investment_of_large_companies}
-Эффективность плана - {self.plan_efficiency}%
+Эфисп приказов Цесаркии - {self.plan_efficiency}%
 Содержание инфраструктуры - {self.gov_wastes[0]}                                  логистики - {self.gov_wastes[1]}                       
 федеративное - {self.gov_wastes[2]}                 республиканское - {self.gov_wastes[3]}                                   ресурсодобычи - {self.gov_wastes[4]} 
 Траты на образование - {self.med_wastes[0]}               здравоохранение - {self.med_wastes[1]}               охранные учреждения - {self.med_wastes[2]} 
@@ -187,7 +187,7 @@ class AtteriumEconomyStats(StatsBase):
             'additions': 'Дополнительные средства',
             'freedom_and_efficiency_of_small_business': 'СиРМБ',
             'investment_of_large_companies': 'Вложения крупных компаний',
-            'plan_efficiency': 'Эффективность плана (%)',
+            'plan_efficiency': 'Эфисп приказов Цесаркии (%)',
             'gov_wastes': 'Расходы на государство (инфраструктура логистика федеративное республиканское ресурсодобыча)',
             'med_wastes': 'Расходы на социальную сферу (образование здравоохранение охрана соц.сфера наука)',
             'war_wastes': 'Расходы на военную сферу (армия военное_производство флот)',
@@ -230,7 +230,7 @@ class AtteriumEconomyStats(StatsBase):
             'additions': r'Дополнительные средства - \+([\d.]+) ед\.вал',
             'freedom_and_efficiency_of_small_business': r'СиРМБ - ([\d.]+)',
             'investment_of_large_companies': r'Вложения крупных компаний - ([\d.]+)',
-            'plan_efficiency': r'Эффективность плана - ([\d.]+)%',
+            'plan_efficiency': r'Эфисп приказов Цесаркии - ([\d.]+)%',
             'gov_wastes': [
                 r'Содержание инфраструктуры - ([\d.]+)',
                 r'логистики - ([\d.]+)',
@@ -503,7 +503,7 @@ Cвязь Федерации с Республиками - {self.state_apparatus
 Уровень образованности - {self.knowledge_level}            Шанс на успех - {self.success_chance}%       Пропаганда многодетности - {self.many_children_propoganda}   
 Целостность веры - {self.integrity_of_faith}               Коррупция - {self.corruption_level}             Солевой достаток - {self.salt_security}% 
 Процент бедности - {self.poor_level}                              Процент безработицы - {self.jobless_level}  
-Малый бизнес - {self.small_enterprise_percent}                            Центры плана - {self.large_enterprise_count}
+Малый бизнес - {self.small_enterprise_percent}                            Клюпр Цесаркии - {self.large_enterprise_count}
 Число провинций - {self.provinces_count}                   Траты на одну - {self.provinces_waste} ед.вал                       ЗВО - {self.military_equipment}
 КОНТРОЛЬ
 Правящая сила - {self.control[0]}%         Представительство - {self.control[1]}%               Имеющие силу - {self.control[2]}%             Автономии - {self.control[3]}%```
@@ -528,7 +528,7 @@ Cвязь Федерации с Республиками - {self.state_apparatus
 Уровень образования - {self.knowledge_level}            Шанс на успех - {self.success_chance}%       Пропаганда многодетности - {self.many_children_propoganda}   
 Целостность веры - {self.integrity_of_faith}               Коррупция - {self.corruption_level}             Солевой достаток - {self.salt_security}% 
 Процент бедности - {self.poor_level}                                                   Процент безработицы - {self.jobless_level}
-Малый бизнес - {self.small_enterprise_percent}                               Центры плана - {self.large_enterprise_count}
+Малый бизнес - {self.small_enterprise_percent}                               Клюпр Цесаркии - {self.large_enterprise_count}
 Число провинций - {self.provinces_count}                   Траты на одну - {self.provinces_waste} ед.вал                       ЗВО - {self.military_equipment}
 КОНТРОЛЬ
 Правящая сила - {self.control[0]}%         Представительство - {self.control[1]}%               Имеющие силу - {self.control[2]}%             Автономии - {self.control[3]}%```
@@ -596,7 +596,7 @@ Cвязь Федерации с Республиками - {self.state_apparatus
             'poor_level': 'Процент бедности',
             'jobless_level': 'Процент безработицы',
             'small_enterprise_percent': 'Малый бизнес',
-            'large_enterprise_count': 'Центры плана',
+            'large_enterprise_count': 'Клюпр Цесаркии',
             'provinces_count': 'Число провинций',
             'provinces_waste': 'Траты на одну провинцию (ед.вал.)',
             'military_equipment': 'ЗВО',
@@ -634,7 +634,7 @@ Cвязь Федерации с Республиками - {self.state_apparatus
             'poor_level': r'Процент бедности - ([\d.]+)',
             'jobless_level': r'Процент безработицы - ([\d.]+)',
             'small_enterprise_percent': r'Малый бизнес - ([\d.]+)',
-            'large_enterprise_count': r'Центры плана - (\d+)',
+            'large_enterprise_count': r'Клюпр Цесаркии - (\d+)',
             'provinces_count': r'Число провинций - (\d+)',
             'provinces_waste': r'Траты на одну - ([\d.]+) ед\.вал',
             'military_equipment': r'ЗВО - ([\d.]+)',
