@@ -33,6 +33,7 @@ class AtteriumEconomyStats(StatsBase):
     mid_quality_percent: float
     low_quality_percent: float
     valgery: float
+    allegorization: float
     branches_count: int
     branches_efficiency: float
     adrian_effect: float
@@ -111,7 +112,8 @@ class AtteriumEconomyStats(StatsBase):
 Транспортные издержки - {self.trade_wastes} ед.вал.                         Доступные торговые пути - {5 + 3 * (self.trade_rank - 1)}
 Процент продаж ресурсов:
 Высокого качества - {self.high_quality_percent}%                  Среднего качества - {self.mid_quality_percent}%              Низкого качества - {self.low_quality_percent}%
-Число используемых торговых путей - {self.trade_usage}       Вальжерия - {self.valgery}%         Курс валюты - хз                    Торговая прибыль - хз
+Число используемых торговых путей - {self.trade_usage}       Вальжерия - {self.valgery}%         Курс валюты - {round(self.forex, 2)}                    
+Аллегоризация - {self.allegorization}%                                                   Торговая прибыль - {round(self.trade_income, 3)}   
 Количество филиалов - {self.branches_count}           Эффективность - {self.branches_efficiency}%              Доход - хз
 Эффект Адриана (Рантье) - {self.adrian_effect}                                           Сила СЭЗ - {self.power_of_economic_formation}
 ```
@@ -139,8 +141,9 @@ class AtteriumEconomyStats(StatsBase):
 Транспортные издержки - {self.trade_wastes} ед.вал.                         Доступные торговые пути - {5 + 3 * (self.trade_rank - 1)}
 Процент продаж ресурсов:
 Высокого качества - {self.high_quality_percent}%                  Среднего качества - {self.mid_quality_percent}%              Низкого качества - {self.low_quality_percent}%
-Число используемых торговых путей - {self.trade_usage}       Вальжерия - {self.valgery}%         Курс валюты - {round(self.forex, 2)}                    Торговая прибыль - {round(self.trade_income, 3)}
-Количество филиалов - {self.branches_count}           Эффективность - {self.branches_efficiency}%              Доход - {self.branches_income}
+Число используемых торговых путей - {self.trade_usage}       Вальжерия - {self.valgery}%         Курс валюты - {round(self.forex, 2)}                    
+Аллегоризация - {self.allegorization}%                                                   Торговая прибыль - {round(self.trade_income, 3)}   
+Количество филиалов - {self.branches_count}             Эффективность - {self.branches_efficiency}%              Доход - {self.branches_income}
 Эффект Адриана (Рантье) - {self.adrian_effect}                                           Сила СЭЗ - {self.power_of_economic_formation}
 ```
 """
@@ -168,7 +171,8 @@ class AtteriumEconomyStats(StatsBase):
                 'trade_wastes',
                 'high_quality_percent', 'mid_quality_percent',
                 'low_quality_percent',
-                'valgery', 'branches_count', 'branches_efficiency',
+                'valgery', 'allegorization',
+                'branches_count', 'branches_efficiency',
                 'adrian_effect', 'power_of_economic_formation'
             ]
         }
@@ -200,6 +204,7 @@ class AtteriumEconomyStats(StatsBase):
             'mid_quality_percent': 'Процент товаров среднего качества',
             'low_quality_percent': 'Процент товаров низкого качества',
             'valgery': 'Вальжерия',
+            'allegorization': 'Аллегоризация',
             'branches_count': 'Количество филиалов',
             'branches_efficiency': 'Эффективность филиалов (%)',
             'adrian_effect': 'Эффект Адриана (Рантье)',
@@ -262,6 +267,7 @@ class AtteriumEconomyStats(StatsBase):
             'mid_quality_percent': r'Среднего качества - ([\d.]+)%',
             'low_quality_percent': r'Низкого качества - ([\d.]+)%',
             'valgery': r'Вальжерия - ([\d.]+)%',
+            'allegorization': r'Аллегоризация - ([\d.]+)%',
             'branches_count': r'Количество филиалов - (\d+)',
             'branches_efficiency': r'Эффективность - ([\d.]+)%',
             'forex': r'Курс валюты - ([\d.]+)',

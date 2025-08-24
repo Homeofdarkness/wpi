@@ -386,6 +386,18 @@ class BasicSkipMove(SkipMoverBase):
         """Рассчитывает общий доход"""
         total_wastes = self._calculate_total_wastes(logistic_wastes)
         logger.debug(f"Общие расходы - {total_wastes}")
+        allegorization_trade_factor = self.InMoveFunctions.calculate_allegorization_trade_factor(
+            self.Economy.allegorization
+        )
+        allegorization_economy_factor = self.InMoveFunctions.calculate_allegorization_economy_factor(
+            self.Economy.allegorization
+        )
+
+        self.Economy.trade_income *= allegorization_trade_factor
+        self.Economy.branches_income *= allegorization_trade_factor
+
+        self.Economy.tax_income *= allegorization_economy_factor
+        self.Industry.industry_income *= allegorization_economy_factor
 
         # Суммируем все доходы
         self.Economy.money_income = (
@@ -567,7 +579,20 @@ class AtteriumSkipMove(BasicSkipMove):
         total_wastes = self._calculate_total_wastes(logistic_wastes)
         logger.debug(f"Общие расходы - {total_wastes}")
 
-        # Суммируем все доходы
+        allegorization_trade_factor = self.InMoveFunctions.calculate_allegorization_trade_factor(
+            self.Economy.allegorization
+        )
+        allegorization_economy_factor = self.InMoveFunctions.calculate_allegorization_economy_factor(
+            self.Economy.allegorization
+        )
+
+        self.Economy.trade_income *= allegorization_trade_factor
+        self.Economy.branches_income *= allegorization_trade_factor
+
+        self.Economy.tax_income *= allegorization_economy_factor
+        self.Industry.industry_income *= allegorization_economy_factor
+
+        # Суммируем все доходы - расходы
         self.Economy.money_income = (
                 self.Economy.tax_income + self.Economy.trade_income +
                 self.Economy.branches_income + self.Industry.industry_income -
