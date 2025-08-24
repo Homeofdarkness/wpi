@@ -382,8 +382,8 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         rules = [
             (lambda x: x == 0, lambda x: 0.97),
             (lambda x: x < 21, lambda x: 1 + x / 200),
-            (lambda x: x < 81, lambda x: 1 + (x - 20) / 10),
-            (lambda x: True, lambda x: 1 + (x - 20) / 5)
+            (lambda x: x < 81, lambda x: 1 + (x - 20) / 100),
+            (lambda x: True, lambda x: 1 + (x - 20) / 75)
             # Для остальных случаев
         ]
 

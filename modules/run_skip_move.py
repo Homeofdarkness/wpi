@@ -392,6 +392,10 @@ class BasicSkipMove(SkipMoverBase):
         allegorization_economy_factor = self.InMoveFunctions.calculate_allegorization_economy_factor(
             self.Economy.allegorization
         )
+        logger.debug(f"Коэффициент аллегоризации для торговли - "
+                     f"{allegorization_trade_factor}")
+        logger.debug(f"Коэффициент аллегоризации для остального - "
+                     f"{allegorization_economy_factor}")
 
         self.Economy.trade_income *= allegorization_trade_factor
         self.Economy.branches_income *= allegorization_trade_factor
@@ -585,6 +589,11 @@ class AtteriumSkipMove(BasicSkipMove):
         allegorization_economy_factor = self.InMoveFunctions.calculate_allegorization_economy_factor(
             self.Economy.allegorization
         )
+        logger.debug(f"Коэффициент аллегоризации для торговли - "
+                     f"{allegorization_trade_factor}")
+        logger.debug(f"Коэффициент аллегоризации для остального - "
+                     f"{allegorization_economy_factor}")
+
 
         self.Economy.trade_income *= allegorization_trade_factor
         self.Economy.branches_income *= allegorization_trade_factor
