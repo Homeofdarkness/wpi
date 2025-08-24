@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Tuple, Optional
+from typing import Tuple
 
 from functions.atterium_in_move_functions import AtteriumInMoveFunctions
 from functions.base import BaseInMoveFunctions
@@ -43,7 +43,7 @@ class SkipMoverBase(ABC):
     Industry: IndustrialStats
     Agriculture: AgricultureStats
     InnerPolitics: InnerPoliticsStats
-    waste: Optional[float] = None
+    waste: float = 0
     InMoveFunctions: BaseInMoveFunctions = field(
         default_factory=BaseInMoveFunctions)
 
@@ -59,7 +59,6 @@ class SkipMoverBase(ABC):
 
     def _calculate_total_wastes(self, logistic_wastes: float) -> float:
         """Вычисляет общие расходы"""
-        self.waste = self.waste or float(input('Траты на ход - '))
         return (sum(self.Economy.med_wastes) + sum(self.Economy.gov_wastes) +
                 sum(self.Economy.war_wastes) + sum(self.Economy.other_wastes) +
                 logistic_wastes + self.waste + self.Agriculture.agriculture_wastes -
@@ -264,12 +263,12 @@ class BasicSkipMove(SkipMoverBase):
                 self.Agriculture.overprotective_effects))
 
         self.Agriculture.food_security *= 1 - (
-                self.Agriculture.agriculture_deceases / 100)
-        self.Agriculture.food_security *= 1 - (
                 self.Agriculture.agriculture_natural_deceases / 100)
+        self.Agriculture.food_security *= 1 - (
+                self.Agriculture.agriculture_deceases / 100)
 
     def _calculate_base_income(self, results: CalculationResults):
-        """Рассчитывает базовый доход"""
+        """Рассчитывает базовый прирост населения"""
         income_multipliers = [
             self.InMoveFunctions.calculate_goods_coefficient(
                 self.Industry.tvr1),
@@ -279,7 +278,7 @@ class BasicSkipMove(SkipMoverBase):
                 self.InnerPolitics.jobless_level,
                 sum(self.Economy.med_wastes), self.Economy.population_count) *
              results.contentment_coefficient_1 *
-             (0.012 * self.InnerPolitics.many_children_propoganda + 1)),
+             (0.015 * self.InnerPolitics.many_children_propoganda + 1)),
 
             self.InMoveFunctions.calculate_income_coefficient_based_on_agriculture(
                 self.Agriculture.agriculture_efficiency,
@@ -571,7 +570,7 @@ class AtteriumSkipMove(BasicSkipMove):
         # Суммируем все доходы
         self.Economy.money_income = (
                 self.Economy.tax_income + self.Economy.trade_income +
-                self.Economy.branches_income + self.Industry.industry_income +
+                self.Economy.branches_income + self.Industry.industry_income -
                 total_wastes
         )
 

@@ -367,3 +367,48 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         sign = 1 if tvr1 + tvr2 > consumption else -1
 
         return sign * 0.5
+
+    @staticmethod
+    def calculate_allegorization_trade_factor(
+            allegorization_percent: float
+    ) -> float:
+        """Считает бафф торговли относительно процента аллегоризации"""
+        if not 0 <= allegorization_percent <= 100:
+            raise ValueError(
+                f"Процент должен быть в диапазоне [0, 100], "
+                f"получен: {allegorization_percent}")
+
+        # Правила: (условие, функция_расчета)
+        rules = [
+            (lambda x: x == 0, lambda x: 0.97),
+            (lambda x: x < 21, lambda x: 1 + x / 200),
+            (lambda x: x < 81, lambda x: 1 + (x - 20) / 10),
+            (lambda x: True, lambda x: 1 + (x - 20) / 5)
+            # Для остальных случаев
+        ]
+
+        for condition, calculation in rules:
+            if condition(allegorization_percent):
+                return calculation(allegorization_percent)
+
+    @staticmethod
+    def calculate_allegorization_economy_factor(
+            allegorization_percent: float
+    ) -> float:
+        """Считает дебафф экономики относительно процента аллегоризации"""
+        if not 0 <= allegorization_percent <= 100:
+            raise ValueError(
+                f"Процент должен быть в диапазоне [0, 100], "
+                f"получен: {allegorization_percent}")
+
+        rules = [
+            (lambda x: x == 0, lambda x: 1.03),
+            (lambda x: x < 21, lambda x: 1),
+            (lambda x: x < 81, lambda x: 1 - (1.8 + (x - 21) * 0.1) / 100),
+            (lambda x: True, lambda x: 1 + (x - 20) / 500)
+            # Для остальных случаев
+        ]
+
+        for condition, calculation in rules:
+            if condition(allegorization_percent):
+                return calculation(allegorization_percent)

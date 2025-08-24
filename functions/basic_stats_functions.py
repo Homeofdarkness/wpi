@@ -113,7 +113,7 @@ class BasicStatsFunctions:
                                   many_children_traditions: int,
                                   sexual_asceticism: float,
                                   egocentrism_development: float,
-                                  education_level: int, erudition_will: int,
+                                  education_level: float, erudition_will: int,
                                   cultural_level: int,
                                   violence_tendency: float,
                                   unemployment_rate: float,

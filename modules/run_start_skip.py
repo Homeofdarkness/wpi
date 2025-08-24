@@ -274,8 +274,13 @@ class StartSkipMoveBase(ABC, Generic[
 
 
 @dataclass
-class BasicStartSkipMove(StartSkipMoveBase[
-                             EconomyStats, IndustrialStats, AgricultureStats, InnerPoliticsStats]):
+class BasicStartSkipMove(
+    StartSkipMoveBase[
+        EconomyStats,
+        IndustrialStats,
+        AgricultureStats,
+        InnerPoliticsStats
+    ]):
     """Базовая реализация инициализации игры"""
 
     def get_stats_config(self) -> StatsConfig:
@@ -289,8 +294,13 @@ class BasicStartSkipMove(StartSkipMoveBase[
 
 
 @dataclass
-class AtteriumStartSkipMove(StartSkipMoveBase[
-                                AtteriumEconomyStats, AtteriumIndustrialStats, AtteriumAgricultureStats, AtteriumInnerPoliticsStats]):
+class AtteriumStartSkipMove(
+    StartSkipMoveBase[
+        AtteriumEconomyStats,
+        AtteriumIndustrialStats,
+        AtteriumAgricultureStats,
+        AtteriumInnerPoliticsStats
+    ]):
     """Реализация инициализации для игры Atterium"""
 
     def get_stats_config(self) -> StatsConfig:

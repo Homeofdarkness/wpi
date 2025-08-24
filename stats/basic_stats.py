@@ -494,7 +494,7 @@ class InnerPoliticsStats(StatsBase):
     many_children_traditions: int
     sexual_asceticism: float
     egocentrism_development: float
-    education_level: int
+    education_level: float
     erudition_will: int
     cultural_level: int
     violence_tendency: float
@@ -584,7 +584,7 @@ class InnerPoliticsStats(StatsBase):
 ```НАРОД
 Довольство населения - {self.contentment}                                      Доверие властям - {self.government_trust}  
 Традиции многодетности - {self.many_children_traditions}         Сексуальный аскетизм - {self.sexual_asceticism}            Эгоцентризм развития - {self.egocentrism_development}
-Образованность - {self.education_level}                                             Стремление к эрудиции - {self.erudition_will}    
+Образованность - {round(self.education_level, 3)}                                             Стремление к эрудиции - {self.erudition_will}    
 Уровень культуры - {self.cultural_level}          Склонность к насилию - {self.violence_tendency}           Паника - {self.panic_level}%  
 Упадок общества - {self.society_decline}%                                                Процент тунеядства - {self.unemployment_rate}
 Милость Высших - {self.grace_of_the_highest}             Собственная Убеждённость Делу - {self.commitment_to_cause}          Отхождение от истин - {self.departure_from_truths} ```
@@ -690,7 +690,7 @@ class InnerPoliticsStats(StatsBase):
             'many_children_traditions': r'Традиции многодетности - (\d+)',
             'sexual_asceticism': r'Сексуальный аскетизм - ([\d.]+)',
             'egocentrism_development': r'Эгоцентризм развития - ([\d.]+)',
-            'education_level': r'Образованность - (\d+)',
+            'education_level': r'Образованность - ([\d.]+)',
             'erudition_will': r'Стремление к эрудиции - (\d+)',
             'cultural_level': r'Уровень культуры - (\d+)',
             'violence_tendency': r'Склонность к насилию - ([\d.]+)',
