@@ -21,7 +21,6 @@ T_Economy = TypeVar('T_Economy', bound=StatsBase)
 T_Industry = TypeVar('T_Industry', bound=StatsBase)
 T_Agriculture = TypeVar('T_Agriculture', bound=StatsBase)
 T_InnerPolitics = TypeVar('T_InnerPolitics', bound=StatsBase)
-T_float = TypeVar('T_float', bound=float)
 
 
 class GameModes(StrEnum):
@@ -170,7 +169,7 @@ class DataInputHandler:
 
 @dataclass
 class StartSkipMoveBase(ABC, Generic[
-    T_Economy, T_Industry, T_Agriculture, T_InnerPolitics, T_float]):
+    T_Economy, T_Industry, T_Agriculture, T_InnerPolitics]):
     """Базовый абстрактный класс для инициализации игры"""
     mode: Optional[GameModes] = None
 
