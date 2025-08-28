@@ -124,7 +124,7 @@ class EconomyStats(StatsBase):
     @override
     def __str__(self) -> str:
         result_string = f"""```Население-{int(self.population_count)}                  УНЧС - {self.decrement_coefficient}                        Прирост-{round(self.income)}               
-Казна- {"-" if round(self.current_budget - self.prev_budget) < 0 else "+"}{round(self.current_budget - self.prev_budget, 3)} ({round(self.current_budget, 3)})               Экономическая стабильность - {self.stability}%                Инфляция - {self.inflation}%
+Казна- {"+" if self.current_budget > self.prev_budget else ""}{round(self.current_budget - self.prev_budget, 3)} ({round(self.current_budget, 3)})               Экономическая стабильность - {self.stability}%                Инфляция - {self.inflation}%
 ДОХОДЫ - + {round(self.tax_income, 3)} ед.вал в ход
 УН - {self.universal_tax}                    Акцизы - {self.excise}                        Дополнительные средства - +{self.additions} ед.вал
 Налог на предпринимательство - {self.small_enterprise_tax}                         Налог на крупных предпринимателей - {self.large_enterprise_tax}
