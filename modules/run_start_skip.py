@@ -4,11 +4,23 @@ from enum import StrEnum
 from typing import Optional, Dict, Type, TypeVar, Generic
 
 from stats.atterium_stats import (
-    AtteriumEconomyStats, AtteriumIndustrialStats,
-    AtteriumInnerPoliticsStats, AtteriumAgricultureStats
+    AtteriumEconomyStats,
+    AtteriumIndustrialStats,
+    AtteriumAgricultureStats,
+    AtteriumInnerPoliticsStats
 )
-from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, \
+from stats.basic_stats import (
+    EconomyStats,
+    IndustrialStats,
+    AgricultureStats,
     InnerPoliticsStats
+)
+from stats.isf_stats import (
+    IsfEconomyStats,
+    IsfIndustrialStats,
+    IsfAgricultureStats,
+    IsfInnerPoliticsStats
+)
 from stats.stats_base import StatsBase
 from utils.input_parsers import InputParser
 from utils.logger_manager import get_logger
@@ -280,8 +292,9 @@ class BasicStartSkipMove(
         IndustrialStats,
         AgricultureStats,
         InnerPoliticsStats
-    ]):
-    """Базовая реализация инициализации игры"""
+    ]
+):
+    """Базовая реализация инициализации"""
 
     def get_stats_config(self) -> StatsConfig:
         """Возвращает конфигурацию базовых классов статистик"""
@@ -300,8 +313,9 @@ class AtteriumStartSkipMove(
         AtteriumIndustrialStats,
         AtteriumAgricultureStats,
         AtteriumInnerPoliticsStats
-    ]):
-    """Реализация инициализации для игры Atterium"""
+    ]
+):
+    """Реализация инициализации для Atterium"""
 
     def get_stats_config(self) -> StatsConfig:
         """Возвращает конфигурацию классов статистик для Atterium"""
@@ -310,4 +324,25 @@ class AtteriumStartSkipMove(
             industry_class=AtteriumIndustrialStats,
             agriculture_class=AtteriumAgricultureStats,
             inner_politics_class=AtteriumInnerPoliticsStats
+        )
+
+
+@dataclass
+class IsfStartSkipMove(
+    StartSkipMoveBase[
+        IsfEconomyStats,
+        IsfIndustrialStats,
+        IsfAgricultureStats,
+        IsfInnerPoliticsStats
+    ]
+):
+    """Реализация инициализации для Isf"""
+
+    def get_stats_config(self) -> StatsConfig:
+        """Возвращает конфигурацию классов статистик для Isf"""
+        return StatsConfig(
+            economy_class=IsfEconomyStats,
+            industry_class=IsfIndustrialStats,
+            agriculture_class=IsfAgricultureStats,
+            inner_politics_class=IsfInnerPoliticsStats
         )

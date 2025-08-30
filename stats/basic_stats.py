@@ -117,7 +117,7 @@ class EconomyStats(StatsBase):
 Высокого качества - {self.high_quality_percent}%                  Среднего качества - {self.mid_quality_percent}%              Низкого качества - {self.low_quality_percent}%
 Число используемых торговых путей - {self.trade_usage}       Вальжерия - {self.valgery}%         Курс валюты - {round(self.forex, 2)}                    
 Аллегоризация - {self.allegorization}%                                                   Торговая прибыль - {round(self.trade_income, 3)}   
-Количество филиалов - {self.branches_count}           Эффективность - {self.branches_efficiency}%              Доход - хз```
+Количество филиалов - {self.branches_count}                    Эффективность - {self.branches_efficiency}%              Доход - хз```
 """
         return result_string
 
@@ -143,7 +143,7 @@ class EconomyStats(StatsBase):
 Высокого качества - {self.high_quality_percent}%                  Среднего качества - {self.mid_quality_percent}%              Низкого качества - {self.low_quality_percent}%
 Число используемых торговых путей - {self.trade_usage}       Вальжерия - {self.valgery}%         Курс валюты - {round(self.forex, 2)}                    
 Аллегоризация - {self.allegorization}%                                                   Торговая прибыль - {round(self.trade_income, 3)}   
-Количество филиалов - {self.branches_count}           Эффективность - {self.branches_efficiency}%              Доход - {self.branches_income}```
+Количество филиалов - {self.branches_count}                                Эффективность - {self.branches_efficiency}%              Доход - {self.branches_income}```
 """
 
         return result_string

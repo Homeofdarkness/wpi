@@ -3,10 +3,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Optional, Dict, Type, Any, Protocol
 
-from modules.run_finalize import BasicFinalizer, AtteriumFinalizer
-from modules.run_skip_move import BasicSkipMove, AtteriumSkipMove
+from modules.run_finalize import BasicFinalizer, AtteriumFinalizer, \
+    IsfFinalizer
+from modules.run_skip_move import BasicSkipMove, AtteriumSkipMove, IsfSkipMove
 from modules.run_start_skip import BasicStartSkipMove, AtteriumStartSkipMove, \
-    GameStats
+    GameStats, IsfStartSkipMove
 from utils.logger_manager import get_logger
 
 
@@ -17,7 +18,7 @@ class GameMode(StrEnum):
     """Режимы запуска"""
     BASIC = "basic"
     ATTERIUM = "atterium"
-    TROY = "troy"
+    ISF = "isf"
     RECOVERY_BLOCK = "recovery-block"
 
 
@@ -75,13 +76,12 @@ class GameConfigurationRegistry:
             name="Atterium",
             description="Расширенный режим для Аттериума"
         ),
-        GameMode.TROY: GameConfiguration(
-            start_skip_class=None,  # Пока не реализован
-            skip_move_class=None,
-            finalizer_class=None,
-            name="Troy",
-            description="Режим Troy - в разработке",
-            is_available=False
+        GameMode.ISF: GameConfiguration(
+            start_skip_class=IsfStartSkipMove,  # Пока не реализован
+            skip_move_class=IsfSkipMove,
+            finalizer_class=IsfFinalizer,
+            name="Isf",
+            description="Расширенный режим для Империи Серебрянного Феникса"
         ),
         GameMode.RECOVERY_BLOCK: GameConfiguration(
             start_skip_class=None,  # Пока не реализован

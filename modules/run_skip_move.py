@@ -5,12 +5,25 @@ from typing import Tuple
 from functions.atterium_in_move_functions import AtteriumInMoveFunctions
 from functions.base import BaseInMoveFunctions
 from functions.basic_in_move_functions import BasicInMoveFunctions
+from functions.isf_in_move_functions import IsfInMoveFunctions
 from stats.atterium_stats import (
-    AtteriumEconomyStats, AtteriumIndustrialStats,
-    AtteriumAgricultureStats, AtteriumInnerPoliticsStats
+    AtteriumEconomyStats,
+    AtteriumIndustrialStats,
+    AtteriumAgricultureStats,
+    AtteriumInnerPoliticsStats
 )
-from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, \
+from stats.basic_stats import (
+    EconomyStats,
+    IndustrialStats,
+    AgricultureStats,
     InnerPoliticsStats
+)
+from stats.isf_stats import (
+    IsfEconomyStats,
+    IsfIndustrialStats,
+    IsfAgricultureStats,
+    IsfInnerPoliticsStats
+)
 from utils.logger_manager import get_logger
 
 
@@ -465,8 +478,10 @@ class BasicSkipMove(SkipMoverBase):
         self._update_education()
         self._update_military_equipment()
 
-    def calculate_logistic_based_params(self,
-                                        logistic_wastes: float) -> LogisticParams:
+    def calculate_logistic_based_params(
+            self,
+            logistic_wastes: float
+    ) -> LogisticParams:
         """Рассчитывает параметры на основе логистики"""
         params = LogisticParams()
 
@@ -651,3 +666,57 @@ class AtteriumSkipMove(BasicSkipMove):
 
         self.Economy.money_income *= collaboration_factor * inflation_factor
         logger.debug(f"Итоговый доход - {self.Economy.money_income}")
+
+
+class IsfSkipMove(BasicSkipMove):
+    Economy: IsfEconomyStats
+    Industry: IsfIndustrialStats
+    Agriculture: IsfAgricultureStats
+    InnerPolitics: IsfInnerPoliticsStats
+    waste: int = 0
+    InMoveFunctions: IsfInMoveFunctions = field(
+        default_factory=IsfInMoveFunctions)
+
+    def calculate_logistic_based_params(
+            self,
+            logistic_wastes: float
+    ) -> LogisticParams:
+        """Рассчитывает параметры на основе логистики"""
+        params = LogisticParams()
+
+        expected_logistic = self.InMoveFunctions.calculate_expected_logistic_wastes(
+            self.Economy.gov_wastes)
+
+        if expected_logistic <= logistic_wastes:
+            params.discount = self.Economy.gov_wastes[0] * 0.1
+        else:
+            params.food_security_spotter = 7
+            params.tax_income_coefficient = 0.1
+
+        # Расчет влияния соли на довольство
+        salt_security = self.InnerPolitics.salt_security
+        if 0 <= salt_security < 50:
+            params.contentment_spotter -= salt_security // 5
+        elif salt_security >= 100:
+            bonus = min(salt_security, 150) // 15
+            params.contentment_spotter += min(
+                bonus,
+                100 - self.InnerPolitics.contentment
+            )
+
+        # Расчет влияния контроля
+        total_control = self.InnerPolitics.control[0] + \
+                        self.InnerPolitics.control[1]
+        if total_control < 90:
+            params.contentment_spotter = min(
+                params.contentment_spotter + 5,
+                100 - self.InnerPolitics.contentment)
+            params.tax_income_coefficient -= 0.05
+            params.food_security_spotter -= 4
+        else:
+            control_sum = self.InnerPolitics.control[2] + \
+                          self.InnerPolitics.control[3]
+            params.contentment_spotter -= 5
+            params.tax_income_coefficient += control_sum / 400
+
+        return params

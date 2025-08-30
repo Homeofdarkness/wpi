@@ -1,12 +1,25 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from stats.atterium_stats import (
-    AtteriumEconomyStats, AtteriumIndustrialStats,
-    AtteriumAgricultureStats, AtteriumInnerPoliticsStats
-)
-from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, \
+from stats.basic_stats import (
+    EconomyStats,
+    IndustrialStats,
+    AgricultureStats,
     InnerPoliticsStats
+)
+from stats.atterium_stats import (
+    AtteriumEconomyStats,
+    AtteriumIndustrialStats,
+    AtteriumAgricultureStats,
+    AtteriumInnerPoliticsStats
+)
+from stats.isf_stats import (
+    IsfEconomyStats,
+    IsfIndustrialStats,
+    IsfAgricultureStats,
+    IsfInnerPoliticsStats
+)
+
 from utils.logger_manager import get_logger
 
 
@@ -52,3 +65,11 @@ class AtteriumFinalizer(BasicFinalizer):
     Industry: AtteriumIndustrialStats
     Agriculture: AtteriumAgricultureStats
     InnerPolitics: AtteriumInnerPoliticsStats
+
+
+@dataclass
+class IsfFinalizer(BasicFinalizer):
+    Economy: IsfEconomyStats
+    Industry: IsfIndustrialStats
+    Agriculture: IsfAgricultureStats
+    InnerPolitics: IsfInnerPoliticsStats
