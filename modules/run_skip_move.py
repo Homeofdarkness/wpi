@@ -208,8 +208,10 @@ class BasicSkipMove(SkipMoverBase):
             logger.error(f"Ошибка при выполнении пропуска хода: {e}")
             raise
 
-    def _perform_basic_calculations(self,
-                                    logistic_wastes: float) -> CalculationResults:
+    def _perform_basic_calculations(
+            self,
+            logistic_wastes: float
+    ) -> CalculationResults:
         """Выполняет основные расчеты для хода"""
         logistic_params = self.calculate_logistic_based_params(logistic_wastes)
 
@@ -684,8 +686,11 @@ class IsfSkipMove(BasicSkipMove):
         """Рассчитывает параметры на основе логистики"""
         params = LogisticParams()
 
-        expected_logistic = self.InMoveFunctions.calculate_expected_logistic_wastes(
-            self.Economy.gov_wastes)
+        expected_logistic = (
+            self.InMoveFunctions.calculate_expected_logistic_wastes(
+                self.Economy.gov_wastes
+            )
+        )
 
         if expected_logistic <= logistic_wastes:
             params.discount = self.Economy.gov_wastes[0] * 0.1
@@ -704,6 +709,13 @@ class IsfSkipMove(BasicSkipMove):
                 100 - self.InnerPolitics.contentment
             )
 
+        params.contentment_spotter += (
+            self.InMoveFunctions.calculate_contentment_spotter_allegory(
+                self.InnerPolitics.contentment,
+                self.InnerPolitics.allegory_influence
+            )
+        )
+
         # Расчет влияния контроля
         total_control = self.InnerPolitics.control[0] + \
                         self.InnerPolitics.control[1]
@@ -720,3 +732,23 @@ class IsfSkipMove(BasicSkipMove):
             params.tax_income_coefficient += control_sum / 400
 
         return params
+
+    def _calculate_agriculture_stats(
+            self,
+            food_security_spotter: float
+    ):
+        super()._calculate_agriculture_stats(food_security_spotter)
+        self.Agriculture.food_security *= 1 - (
+                self.Agriculture.empire_land_unmastery / 100
+        )
+
+    def _calculate_total_income(self, logistic_wastes: float):
+        super()._calculate_total_income(logistic_wastes)
+        modifiers = [
+            self.InMoveFunctions.calculate_money_income_allegory_factor(
+                self.InnerPolitics.allegory_influence
+            )
+        ]
+
+        for modifier in modifiers:
+            self.Economy.money_income *= modifier

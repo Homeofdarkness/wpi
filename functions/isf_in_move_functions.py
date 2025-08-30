@@ -36,3 +36,16 @@ class IsfInMoveFunctions(BasicInMoveFunctions):
             securities) / 100  # Преобразуем проценты в коэффициент
         expenses = (population_count / 1000000) * influence_factor * base_cost
         return expenses
+
+    @staticmethod
+    def calculate_contentment_spotter_allegory(
+            contentment: int,
+            allegory_influence: float
+    ) -> float:
+        return contentment * (allegory_influence / 1000)
+
+    @staticmethod
+    def calculate_money_income_allegory_factor(
+            allegory_influence: float
+    ) -> float:
+        return 1 - (allegory_influence / 1000)

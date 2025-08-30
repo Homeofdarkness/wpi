@@ -18,7 +18,7 @@ class IsfEconomyStats(StatsBase):
     excise: float
     additions: float
     small_business_tax: float
-    aristocracy_tax: float
+    large_enterprise_tax: float
     gov_wastes: List[float]
     med_wastes: List[float]
     other_wastes: List[float]
@@ -96,7 +96,7 @@ class IsfEconomyStats(StatsBase):
 Казна- хз               Экономическая стабильность - {self.stability}%                Инфляция - {self.inflation}%
 ДОХОДЫ - + "Хз" ед.вал в ход
 УН - {self.universal_tax}                    Акцизы - {self.excise}                        Дополнительные средства - +{self.additions} ед.вал
-Налог на малый бизнес - {self.small_business_tax}                         Налоги с аристократии - {self.aristocracy_tax}
+Налог на малый бизнес - {self.small_business_tax}                         Налоги с аристократии - {self.large_enterprise_tax}
 Содержание инфраструктуры - {self.gov_wastes[0]}                                  логистики - {self.gov_wastes[1]}                       
 гос.аппарата - {self.gov_wastes[2]}                                                 ресурсодобычи - {self.gov_wastes[3]} 
 Траты на образование - {self.med_wastes[0]}               здравоохранение - {self.med_wastes[1]}               охранные учреждения - {self.med_wastes[2]} 
@@ -123,7 +123,7 @@ class IsfEconomyStats(StatsBase):
 Казна- {"-" if round(self.current_budget - self.prev_budget) < 0 else "+"}{round(self.current_budget - self.prev_budget, 3)} ({round(self.current_budget, 3)})               Экономическая стабильность - {self.stability}%                Инфляция - {self.inflation}%
 ДОХОДЫ - + {round(self.tax_income, 3)} ед.вал в ход
 УН - {self.universal_tax}                    Акцизы - {self.excise}                        Дополнительные средства - +{self.additions} ед.вал
-Налог на малый бизнес - {self.small_business_tax}                         Налоги с аристократии - {self.aristocracy_tax}
+Налог на малый бизнес - {self.small_business_tax}                         Налоги с аристократии - {self.large_enterprise_tax}
 Содержание инфраструктуры - {self.gov_wastes[0]}                                  логистики - {self.gov_wastes[1]}                       
 гос.аппарата - {self.gov_wastes[2]}                                                 ресурсодобычи - {self.gov_wastes[3]} 
 Траты на образование - {self.med_wastes[0]}               здравоохранение - {self.med_wastes[1]}               охранные учреждения - {self.med_wastes[2]} 
@@ -154,7 +154,7 @@ class IsfEconomyStats(StatsBase):
             ],
             "Налоги и доходы": [
                 'universal_tax', 'excise', 'additions',
-                'small_business_tax', 'aristocracy_tax'
+                'small_business_tax', 'large_enterprise_tax'
             ],
             "Расходы": [
                 'gov_wastes', 'med_wastes', 'war_wastes', 'other_wastes'
@@ -180,7 +180,7 @@ class IsfEconomyStats(StatsBase):
             'excise': 'Акцизы',
             'additions': 'Дополнительные средства',
             'small_business_tax': 'Налог на малый бизнес',
-            'aristocracy_tax': 'Налоги с аристократии',
+            'large_enterprise_tax': 'Налоги с аристократии',
             'gov_wastes': 'Расходы на государство (инфраструктура логистика гос.аппарат ресурсодобыча)',
             'med_wastes': 'Расходы на социальную сферу (образование здравоохранение охрана соц.сфера наука)',
             'war_wastes': 'Расходы на военную сферу (армия военное_производство флот)',
@@ -221,7 +221,7 @@ class IsfEconomyStats(StatsBase):
             'excise': r'Акцизы - ([\d.]+)',
             'additions': r'Дополнительные средства - \+([\d.]+) ед\.вал',
             'small_business_tax': r'Налог на малый бизнес - ([\d.]+)',
-            'aristocracy_tax': r'Налоги с аристократии - ([\d.]+)',
+            'large_enterprise_tax': r'Налоги с аристократии - ([\d.]+)',
             'gov_wastes': [
                 r'Содержание инфраструктуры - ([\d.]+)',
                 r'логистики - ([\d.]+)',
@@ -501,6 +501,7 @@ class IsfInnerPoliticsStats(StatsBase):
             self.departure_from_truths,
             self.imperial_court_power,
             self.separatism_of_the_highest,
+            self.allegory_influence
         )
 
     @society_decline.setter

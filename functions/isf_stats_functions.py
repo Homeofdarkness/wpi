@@ -19,12 +19,14 @@ class IsfStatsFunctions(BaseInMoveFunctions):
             commitment_to_cause: int,
             departure_from_truths: int,
             imperial_court_power: float,
-            separatism_of_the_highest: int
+            separatism_of_the_highest: int,
+            allegory_influence: float
     ) -> float:
         """Считает упадок общества"""
         positive_factors = (
                 contentment * 0.04 +
                 government_trust * 0.19 +
+                allegory_influence * 0.08 +
                 many_children_traditions * 0.04 +
                 sexual_asceticism * 0.3 +
                 education_level * 0.05 +
