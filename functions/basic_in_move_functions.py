@@ -362,8 +362,15 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         return round(consumption / 1000000, 2), round(tension, 1)
 
     @staticmethod
-    def calculate_industry_overproduction_change(tvr1: int, tvr2: int,
-                                                 consumption: float) -> float:
+    def calculate_industry_overproduction_change(
+            tvr1: int,
+            tvr2: int,
+            consumption: float,
+            trade_usage: int
+    ) -> float:
+        if trade_usage >= 40:
+            return -1 * (trade_usage / 100)
+
         sign = 1 if tvr1 + tvr2 > consumption else -1
 
         return sign * 0.5
@@ -412,3 +419,15 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         for condition, calculation in rules:
             if condition(allegorization_percent):
                 return calculation(allegorization_percent)
+
+    @staticmethod
+    def calculate_overproduction_tax_spotter(
+            overproduction_coefficient: float
+    ) -> float:
+        return 1 - (overproduction_coefficient / 100)
+
+    @staticmethod
+    def calculate_overproduction_trade_income(
+            overproduction_coefficient: float
+    ) -> float:
+        return 1 - (overproduction_coefficient / 50)

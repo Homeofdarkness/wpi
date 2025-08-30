@@ -291,19 +291,6 @@ class IndustrialStats(StatsBase):
         self._max_potential = None
         self._expected_wastes = None
 
-    # noinspection PyNestedDecorators
-    @pydantic.model_validator(mode='after')
-    def validate_overproduction_coefficient(self):
-        if max(self.tvr1, self.tvr2) == 100:
-            self.overproduction_coefficient += 0.5
-        else:
-            self.overproduction_coefficient -= 0.5
-
-        self.overproduction_coefficient = max(0.0,
-                                              self.overproduction_coefficient)
-
-        return self
-
     @property
     def civil_usage(self):
         if self._civil_usage is not None:

@@ -307,21 +307,33 @@ class BasicSkipMove(SkipMoverBase):
         """Рассчитывает промышленные показатели"""
         self.Industry.consumption_of_goods = (
             self.InMoveFunctions.calculate_consumption_of_goods(
-                self.Economy.population_count, self.Economy.trade_usage,
-                self.Economy.trade_efficiency, self.Industry.tvr1,
+                self.Economy.population_count,
+                self.Economy.trade_usage,
+                self.Economy.trade_efficiency,
+                self.Industry.tvr1,
                 self.Industry.tvr2)[0])
 
         self.Industry.overproduction_coefficient += (
             self.InMoveFunctions.calculate_industry_overproduction_change(
-                self.Industry.tvr1, self.Industry.tvr2,
-                self.Industry.consumption_of_goods))
+                self.Industry.tvr1,
+                self.Industry.tvr2,
+                self.Industry.consumption_of_goods,
+                self.Economy.trade_usage
+            )
+        )
 
         self.Industry.industry_income = self.InMoveFunctions.calculate_industry_income(
-            self.Economy.gov_wastes, self.Industry.civil_usage,
-            self.Industry.max_potential, self.Industry.expected_wastes)
+            self.Economy.gov_wastes,
+            self.Industry.civil_usage,
+            self.Industry.max_potential,
+            self.Industry.expected_wastes
+        )
 
-    def _calculate_tax_income(self, results: CalculationResults,
-                              logistic_wastes: float):
+    def _calculate_tax_income(
+            self,
+            results: CalculationResults,
+            logistic_wastes: float
+    ):
         """Рассчитывает налоговый доход"""
         small_enterprise_tax_spotter = (1.1 if self.Economy.gov_wastes[0] >
                                                results.expected_infrastructure_waste else 0.85)
@@ -345,7 +357,10 @@ class BasicSkipMove(SkipMoverBase):
             self.InMoveFunctions.calculate_integrity_of_faith_factor(
                 self.InnerPolitics.integrity_of_faith),
             self.InMoveFunctions.calculate_income_coefficient_based_on_panic_level(
-                self.InnerPolitics.panic_level)
+                self.InnerPolitics.panic_level),
+            self.InMoveFunctions.calculate_overproduction_tax_spotter(
+                self.Industry.overproduction_coefficient
+            )
         ]
 
         self.Economy.tax_income = base_tax_income
@@ -372,13 +387,24 @@ class BasicSkipMove(SkipMoverBase):
         logger.debug(f"Курс валют - {self.Economy.forex}")
 
         # Расчет торгового дохода
-        self.Economy.trade_income = self.InMoveFunctions.calculate_trade_income(
+        base_trade_income = self.InMoveFunctions.calculate_trade_income(
             self.Economy.trade_potential, self.Economy.trade_usage,
             self.Economy.trade_efficiency, self.Economy.trade_wastes,
             self.Economy.high_quality_percent,
             self.Economy.mid_quality_percent,
             self.Economy.low_quality_percent, self.Economy.forex,
-            self.Economy.valgery)
+            self.Economy.valgery
+        )
+
+        modifiers = [
+            self.InMoveFunctions.calculate_overproduction_trade_income(
+                self.Industry.overproduction_coefficient
+            )
+        ]
+
+        self.Economy.trade_income = base_trade_income
+        for modifier in modifiers:
+            self.Economy.trade_income *= modifier
 
         logger.debug(f"Торговый доход - {self.Economy.trade_income}")
 
@@ -545,7 +571,10 @@ class AtteriumSkipMove(BasicSkipMove):
             self.InMoveFunctions.calculate_huge_economy_buff(
                 self.InnerPolitics.egocentrism_development
             ),
-            income_spotter_adrian
+            income_spotter_adrian,
+            self.InMoveFunctions.calculate_overproduction_tax_spotter(
+                self.Industry.overproduction_coefficient
+            )
         ]
 
         self.Economy.tax_income = (base_tax_income + plan_efficiency_income)
@@ -560,13 +589,18 @@ class AtteriumSkipMove(BasicSkipMove):
         super()._calculate_trade_income()
 
         # Применяем специфичные для Atterium модификаторы
-        adrian_modifiers = self.InMoveFunctions.calculate_adrian_effect_spotters(
-            self.Economy.adrian_effect)
+        adrian_modifiers = (
+            self.InMoveFunctions.calculate_adrian_effect_spotters(
+                self.Economy.adrian_effect
+            )
+        )
         trade_spotter_adrian = adrian_modifiers[0]
 
         power_formation_buffs = (
             self.InMoveFunctions.calculate_power_of_economic_formation_buffs(
-                self.Economy.power_of_economic_formation))
+                self.Economy.power_of_economic_formation
+            )
+        )
         trade_spotter_power = power_formation_buffs[0]
         branches_spotter_power = power_formation_buffs[3]
 
@@ -593,7 +627,6 @@ class AtteriumSkipMove(BasicSkipMove):
                      f"{allegorization_trade_factor}")
         logger.debug(f"Коэффициент аллегоризации для остального - "
                      f"{allegorization_economy_factor}")
-
 
         self.Economy.trade_income *= allegorization_trade_factor
         self.Economy.branches_income *= allegorization_trade_factor
