@@ -42,7 +42,7 @@ class IsfEconomyStats(StatsBase):
     prev_budget: float = None
 
     @pydantic.model_validator(mode='after')
-    def check_trade_sum(self) -> 'IsfEconomy':
+    def check_trade_sum(self) -> 'IsfEconomyStats':
         goods_percent = self.low_quality_percent + self.mid_quality_percent + self.high_quality_percent
         if abs(goods_percent - 100) > 0.1:
             raise ValueError(
