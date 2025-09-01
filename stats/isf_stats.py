@@ -1,6 +1,7 @@
-from typing import List, Dict, Union, override
+from typing import List, Dict, Union
 
 import pydantic
+from typing_extensions import override
 
 from functions.basic_stats_functions import BasicStatsFunctions
 from functions.isf_stats_functions import IsfStatsFunctions
