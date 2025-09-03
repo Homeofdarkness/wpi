@@ -367,7 +367,7 @@ class IsfAgricultureStats(StatsBase):
                 'securities'
             ],
             "Экономические показатели": [
-                'agriculture_wastes', 'expected_wastes'
+                'agriculture_wastes', 'expected_wastes',
                                       'income_from_resources'
             ],
             "Территориальные и качественные показатели": [
