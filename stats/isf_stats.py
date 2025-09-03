@@ -367,8 +367,8 @@ class IsfAgricultureStats(StatsBase):
                 'securities'
             ],
             "Экономические показатели": [
-                'agriculture_wastes', 'expected_wastes',
-                                      'income_from_resources'
+                'agriculture_wastes'
+                'income_from_resources'
             ],
             "Территориальные и качественные показатели": [
                 'empire_land_unmastery', 'food_diversity',
@@ -457,7 +457,7 @@ class IsfInnerPoliticsStats(StatsBase):
     separatism_of_the_highest: int
 
     @pydantic.model_validator(mode='after')
-    def check_trade_sum(self) -> 'IsfInnerPoliticsStats':
+    def check_control_sum(self) -> 'IsfInnerPoliticsStats':
         if self.control[2] > 15:
             raise ValueError(
                 f"Аристократия не может быть больше 15%, получено "
@@ -607,7 +607,7 @@ class IsfInnerPoliticsStats(StatsBase):
             'provinces_count': 'Число провинций',
             'provinces_waste': 'Траты на одну провинцию (ед.вал.)',
             'military_equipment': 'ЗВО',
-            'control': 'Контроль (правящая сила, представительство, имеющие силу, автономии)',
+            'control': 'Контроль (императорский двор, представительство, Аристократия, автономии)',
             'allegory_influence': 'Влияние Аллегории (%)',
             'contentment': 'Довольство населения',
             'government_trust': 'Доверие властям',
