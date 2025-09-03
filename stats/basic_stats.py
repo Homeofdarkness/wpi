@@ -413,8 +413,7 @@ Cобственной ресурсной базой - {self.usages[0]}%         
             ],
             "Гражданская промышленность": [
                 'civil_security', 'standardization', 'logistic',
-                'tvr1', 'tvr2', 'overproduction_coefficient',
-                'industry_income', 'consumption_of_goods'
+                'tvr1', 'tvr2', 'overproduction_coefficient'
             ],
             "Военная промышленность": [
                 'war_production_efficiency'

@@ -41,7 +41,7 @@ class IsfStatsFunctions(BaseInMoveFunctions):
             violence_tendency * 0.3 +  # + 2
             egocentrism_development * 0.15 +
             unemployment_rate * 0.15 +
-            departure_from_truths * 0.9,
+            departure_from_truths * 0.9 +
             separatism_of_the_highest * 0.7
         )
 
