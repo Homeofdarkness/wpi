@@ -60,6 +60,7 @@ class IsfEconomyStats(StatsBase):
         super().__init__(**data)
         self._income = None
         self._trade_potential = None
+        self._branches_income = None
 
     @property
     def income(self):
