@@ -43,10 +43,16 @@ class IsfEconomyStats(StatsBase):
 
     @pydantic.model_validator(mode='after')
     def check_trade_sum(self) -> 'IsfEconomyStats':
-        goods_percent = self.low_quality_percent + self.mid_quality_percent + self.high_quality_percent
+        goods_percent = (
+                self.low_quality_percent
+                + self.mid_quality_percent
+                + self.high_quality_percent
+        )
         if abs(goods_percent - 100) > 0.1:
             raise ValueError(
-                f"Сумма товаров разных качеств должна быть равна 100, а на деле - {goods_percent}")
+                f"Сумма товаров разных качеств должна быть равна 100, "
+                f"а на деле - {goods_percent}"
+            )
 
         return self
 
@@ -70,8 +76,10 @@ class IsfEconomyStats(StatsBase):
     def trade_potential(self):
         if self._trade_potential is not None:
             return self._trade_potential
-        return BasicStatsFunctions.calculate_trade_potential(self.trade_rank,
-                                                             self.trade_efficiency)
+        return BasicStatsFunctions.calculate_trade_potential(
+            self.trade_rank,
+            self.trade_efficiency
+        )
 
     @trade_potential.setter
     def trade_potential(self, value):
@@ -303,8 +311,11 @@ class IsfAgricultureStats(StatsBase):
     def agriculture_efficiency(self):
         if self._agriculture_efficiency is not None:
             return self._agriculture_efficiency
-        return BasicStatsFunctions.calculate_approximate_agriculture_efficiency(
-            self.securities)
+        return (
+            BasicStatsFunctions.calculate_approximate_agriculture_efficiency(
+                self.securities
+            )
+        )
 
     @agriculture_efficiency.setter
     def agriculture_efficiency(self, value):
