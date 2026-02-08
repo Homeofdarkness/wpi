@@ -30,7 +30,8 @@ ATTERIUM_FIELD_GROUPS: Dict[str, List[str]] = {
                                 'agriculture_natural_deceases',
                                 'food_diversity']}
 ISF_FIELD_GROUPS: Dict[str, List[str]] = {
-    'Экономические показатели': ['agriculture_wastesincome_from_resources'],
+    'Экономические показатели': ['agriculture_wastes',
+                                 'income_from_resources'],
     'Территориальные и качественные показатели': ['empire_land_unmastery',
                                                   'food_diversity',
                                                   'agriculture_deceases',
