@@ -172,6 +172,7 @@ class IsfEconomyStats(StatsBase):
         from stats.schemas.economy_schema import build_regex_patterns
         return build_regex_patterns("isf")
 
+
 class IsfIndustrialStats(IndustrialStats):
     pass
 
@@ -284,6 +285,7 @@ class IsfAgricultureStats(StatsBase):
     def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
         from stats.schemas.agriculture_schema import build_regex_patterns
         return build_regex_patterns("isf")
+
 
 class IsfInnerPoliticsStats(StatsBase):
     state_apparatus_size: int = pydantic.Field(..., ge=0, le=400)
@@ -437,4 +439,3 @@ class IsfInnerPoliticsStats(StatsBase):
     def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
         from stats.schemas.inner_politics_schema import build_regex_patterns
         return build_regex_patterns("isf")
-

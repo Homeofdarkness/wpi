@@ -1,5 +1,5 @@
 import functools
-from typing import List, Tuple, Dict, Union, Any
+from typing import List, Dict, Union, Any
 
 import pydantic
 from typing_extensions import override
@@ -165,6 +165,7 @@ class EconomyStats(StatsBase):
     def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
         from stats.schemas.economy_schema import build_regex_patterns
         return build_regex_patterns("basic")
+
 
 class IndustrialStats(StatsBase):
     processing_production: float = pydantic.Field(..., ge=0, le=100)
@@ -501,6 +502,7 @@ class InnerPoliticsStats(StatsBase):
         from stats.schemas.inner_politics_schema import build_regex_patterns
         return build_regex_patterns("basic")
 
+
 class AgricultureStats(StatsBase):
     husbandry: float
     livestock: float
@@ -610,4 +612,3 @@ class AgricultureStats(StatsBase):
     def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
         from stats.schemas.agriculture_schema import build_regex_patterns
         return build_regex_patterns("basic")
-
