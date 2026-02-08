@@ -11,6 +11,7 @@ from modules.run_start_skip import make_start_skip_move
 from utils.logger_manager import get_logger
 from utils.user_io import ConsoleIO, UserIO
 
+
 logger = get_logger("Run Main")
 
 
@@ -118,4 +119,5 @@ class RunMain:
             return Status.CANCELLED
         except Exception as e:
             logger.error(f"Ошибка запуска: {e}")
+            print(e)
             return Status.ERROR
