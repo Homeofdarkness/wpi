@@ -1,5 +1,22 @@
+"""Logging utilities.
+
+A common pain point in small projects is that logging configuration leaks into
+unit tests (e.g. creating files, writing into the repo, asking for input).
+
+This module provides a small logger manager with sane defaults and
+**test-friendly** knobs.
+
+Environment variables:
+- WPI_LOG_LEVEL: DEBUG/INFO/WARNING/ERROR (default: DEBUG)
+- WPI_LOG_TO_FILE: 1/0 (default: 1)
+- WPI_LOG_DIR: custom log directory (default: <project>/logs)
+"""
+
+from __future__ import annotations
+
 import glob
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
@@ -31,38 +48,59 @@ class Logger:
 
         return current_path.parent
 
-    def _setup_logging_environment(self):
-        project_root = self._get_project_root()
-        log_dir = project_root / "logs"
-        log_dir.mkdir(exist_ok=True)
+    def _setup_logging_environment(self) -> None:
+        # Respect env overrides (especially for tests)
+        level_name = os.environ.get('WPI_LOG_LEVEL', 'DEBUG').upper()
+        level = getattr(logging, level_name, logging.DEBUG)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = log_dir / f"app_{timestamp}.log"
+        log_to_file = os.environ.get('WPI_LOG_TO_FILE', '1').strip() not in {
+            '0', 'false', 'no'}
+
+        project_root = self._get_project_root()
+        log_dir = Path(
+            os.environ.get('WPI_LOG_DIR', str(project_root / 'logs')))
+
+        handlers: List[logging.Handler] = []
+
+        self.log_dir = None
+
+        if log_to_file:
+            try:
+                log_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                log_file = log_dir / f"app_{timestamp}.log"
+                handlers.insert(
+                    0,
+                    logging.FileHandler(
+                        log_file,
+                        mode='w',
+                        encoding='utf-8'
+                    )
+                )
+                self.log_dir = log_dir
+            except Exception:
+                # If file logging fails for any reason, fall back to console.
+                self.log_dir = None
 
         logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            handlers=[
-                logging.FileHandler(log_file, mode="w", encoding="utf-8"),
-                logging.StreamHandler()
-            ]
+            level=level,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=handlers,
         )
-
-        self.log_dir = log_dir
 
     @staticmethod
     def get_logger(name: str = None) -> logging.Logger:
         return logging.getLogger(name or __name__)
 
     def get_log_files(self) -> List[Path]:
-        if not hasattr(self, 'log_dir'):
+        if not getattr(self, 'log_dir', None):
             return []
 
-        log_pattern = str(self.log_dir / "app_*.log")
+        log_pattern = str(Path(self.log_dir) / 'app_*.log')
         return [Path(log_file) for log_file in glob.glob(log_pattern)]
 
     def get_log_info(self) -> dict:
-        if not hasattr(self, 'log_dir'):
+        if not getattr(self, 'log_dir', None):
             return {}
 
         log_files = self.get_log_files()
@@ -78,11 +116,11 @@ class Logger:
                     'size_kb': round(f.stat().st_size / 1024,
                                      2) if f.exists() else 0,
                     'modified': datetime.fromtimestamp(
-                        f.stat().st_mtime).strftime(
-                        '%Y-%m-%d %H:%M:%S') if f.exists() else 'N/A'
+                        f.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                    if f.exists() else 'N/A',
                 }
                 for f in log_files
-            ]
+            ],
         }
 
 
@@ -95,12 +133,19 @@ def get_logger(name: str = None) -> logging.Logger:
 
 
 def clean_logs_directory(
-        logs_dir: str = "logs",
+        logs_dir: str = 'logs',
         max_files: int = 10,
         keep_latest: int = 3,
-        file_pattern: str = "*",
-        dry_run: bool = False
+        file_pattern: str = '*',
+        dry_run: bool = False,
+        assume_yes: bool = False,
 ):
+    """Clean up logs directory.
+
+    This is a convenience utility, not used by the engine.
+    `assume_yes` exists to make it script-friendly.
+    """
+
     logs_path = Path(logs_dir)
 
     if not logs_path.exists():
@@ -126,7 +171,6 @@ def clean_logs_directory(
     # Сортируем файлы по времени модификации (от новых к старым)
     files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
 
-    # Определяем файлы для удаления
     files_to_keep = files[:keep_latest]
     files_to_delete = files[keep_latest:]
 
@@ -144,7 +188,7 @@ def clean_logs_directory(
         print("\n[DRY RUN] Файлы не были удалены")
         return
 
-    if files_to_delete:
+    if files_to_delete and not assume_yes:
         confirm = input(
             f"\nУдалить {len(files_to_delete)} файлов? "
             f"(y/N, да/Нет): ").strip().lower()
@@ -169,5 +213,6 @@ def clean_logs_directory(
 def format_time(timestamp: float) -> str:
     """Форматирует timestamp в читаемый вид"""
     import datetime
+
     return datetime.datetime.fromtimestamp(timestamp).strftime(
         "%Y-%m-%d %H:%M:%S")

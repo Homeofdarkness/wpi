@@ -1,49 +1,31 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from stats.basic_stats import (
-    EconomyStats,
-    IndustrialStats,
-    AgricultureStats,
-    InnerPoliticsStats
-)
-from stats.atterium_stats import (
-    AtteriumEconomyStats,
-    AtteriumIndustrialStats,
-    AtteriumAgricultureStats,
-    AtteriumInnerPoliticsStats
-)
-from stats.isf_stats import (
-    IsfEconomyStats,
-    IsfIndustrialStats,
-    IsfAgricultureStats,
-    IsfInnerPoliticsStats
-)
-
+from stats.stats_base import StatsBase
 from utils.logger_manager import get_logger
 
-
-logger = get_logger("Run Skip Move")
+logger = get_logger("Finalizer")
 
 
 @dataclass
 class FinalizerBase(ABC):
-    Economy: EconomyStats
-    Industry: IndustrialStats
-    Agriculture: AgricultureStats
-    InnerPolitics: InnerPoliticsStats
+    """Finishes a run by rendering / exporting updated stats."""
+
+    Economy: StatsBase
+    Industry: StatsBase
+    Agriculture: StatsBase
+    InnerPolitics: StatsBase
 
     @abstractmethod
-    def finalize(self):
-        raise NotImplementedError()
+    def finalize(self) -> bool:
+        raise NotImplementedError
 
 
 @dataclass
-class BasicFinalizer(FinalizerBase):
-    Economy: EconomyStats
-    Industry: IndustrialStats
-    Agriculture: AgricultureStats
-    InnerPolitics: InnerPoliticsStats
+class PrintFinalizer(FinalizerBase):
+    """Default finalizer: prints stats and logs them."""
 
     def finalize(self) -> bool:
         print("Стата - ")
@@ -55,21 +37,10 @@ class BasicFinalizer(FinalizerBase):
         logger.info(self.Agriculture)
         print(self.InnerPolitics)
         logger.info(self.InnerPolitics)
-
         return True
 
 
-@dataclass
-class AtteriumFinalizer(BasicFinalizer):
-    Economy: AtteriumEconomyStats
-    Industry: AtteriumIndustrialStats
-    Agriculture: AtteriumAgricultureStats
-    InnerPolitics: AtteriumInnerPoliticsStats
-
-
-@dataclass
-class IsfFinalizer(BasicFinalizer):
-    Economy: IsfEconomyStats
-    Industry: IsfIndustrialStats
-    Agriculture: IsfAgricultureStats
-    InnerPolitics: IsfInnerPoliticsStats
+# Backwards-compatible aliases
+BasicFinalizer = PrintFinalizer
+AtteriumFinalizer = PrintFinalizer
+IsfFinalizer = PrintFinalizer

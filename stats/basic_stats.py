@@ -151,121 +151,20 @@ class EconomyStats(StatsBase):
     @staticmethod
     @override
     def _get_field_groups():
-        return {
-            "Основные параметры": [
-                'population_count', 'decrement_coefficient', 'current_budget',
-                'stability', 'inflation'
-            ],
-            "Налоги и доходы": [
-                'universal_tax', 'excise', 'additions',
-                'small_enterprise_tax', 'large_enterprise_tax'
-            ],
-            "Расходы": [
-                'gov_wastes', 'med_wastes', 'war_wastes', 'other_wastes'
-            ],
-            "Торговля": [
-                'trade_rank', 'trade_usage', 'trade_efficiency',
-                'trade_wastes',
-                'high_quality_percent', 'mid_quality_percent',
-                'low_quality_percent',
-                'valgery', 'allegorization',
-                'branches_count', 'branches_efficiency'
-            ]
-        }
+        from stats.schemas.economy_schema import build_field_groups
+        return build_field_groups("basic")
 
     @staticmethod
     @override
     def _get_field_names():
-        return {
-            'population_count': 'Население',
-            'decrement_coefficient': 'УНЧС (0-5)',
-            'current_budget': 'Текущий размер казны',
-            'stability': 'Экономическая стабильность (%)',
-            'inflation': 'Инфляция (%)',
-            'universal_tax': 'УН',
-            'excise': 'Акцизы',
-            'additions': 'Дополнительные средства',
-            'small_enterprise_tax': 'Налог на мелкое предпринимательство',
-            'large_enterprise_tax': 'Налог на крупных предпринимателей',
-            'gov_wastes': 'Расходы на государство (инфраструктура логистика гос.аппарат ресурсодобыча)',
-            'med_wastes': 'Расходы на социальную сферу (образование здравоохранение охрана соц.сфера наука)',
-            'war_wastes': 'Расходы на военную сферу (армия военное_производство флот)',
-            'other_wastes': 'Дополнительные расходы (субсидирование внешние оккупация)',
-            'trade_rank': 'Торговый ранг',
-            'trade_usage': 'Число используемых торговых путей',
-            'trade_efficiency': 'Торговая эффективность (%)',
-            'trade_wastes': 'Торговые издержки',
-            'high_quality_percent': 'Процент товаров высокого качества',
-            'mid_quality_percent': 'Процент товаров среднего качества',
-            'low_quality_percent': 'Процент товаров низкого качества',
-            'valgery': 'Вальжерия',
-            'allegorization': 'Аллегоризация',
-            'branches_count': 'Количество филиалов',
-            'branches_efficiency': 'Эффективность филиалов (%)'
-        }
+        from stats.schemas.economy_schema import build_field_names
+        return build_field_names("basic")
 
     @staticmethod
     @override
     def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
-        return {
-            'population_count': r'Население-(\d+)',
-            'decrement_coefficient': r'УНЧС - (\d+)',
-            'stability': r'Экономическая стабильность - (\d+)%',
-            'inflation': r'Инфляция - ([\d.]+)%',
-            'current_budget': {
-                'type': 'budget_calculation',
-                'pattern': r'Казна- [+-]([\d.]+) \(([\d.]+)\)',
-                'field': 'current_budget'
-            },
-            'prev_budget': {
-                'type': 'budget_calculation',
-                'pattern': r'Казна- [+-]([\d.]+) \(([\d.]+)\)',
-                'field': 'prev_budget'
-            },
-            'tax_income': r'ДОХОДЫ - \+ ([\d.]+) ед\.вал',
-            'universal_tax': r'УН - ([\d.]+)',
-            'excise': r'Акцизы - ([\d.]+)',
-            'additions': r'Дополнительные средства - \+([\d.]+) ед\.вал',
-            'small_enterprise_tax': r'Налог на предпринимательство - ([\d.]+)',
-            'large_enterprise_tax': r'Налог на крупных предпринимателей - ([\d.]+)',
-            'gov_wastes': [
-                r'Содержание инфраструктуры - ([\d.]+)',
-                r'логистики - ([\d.]+)',
-                r'гос\.аппарата - ([\d.]+)',
-                r'ресурсодобычи - ([\d.]+)'
-            ],
-            'med_wastes': [
-                r'Траты на образование - ([\d.]+)',
-                r'здравоохранение - ([\d.]+)',
-                r'охранные учреждения - ([\d.]+)',
-                r'соц\.сферу - ([\d.]+)',
-                r'науку - ([\d.]+)'
-            ],
-            'other_wastes': [
-                r'Субсидирование бизнеса - ([\d.]+)',
-                r'Внешние расходы - ([\d.]+)',
-                r'Оккупация - ([\d.]+)'
-            ],
-            'war_wastes': [
-                r'Траты на армию - ([\d.]+)',
-                r'военное производство - ([\d.]+)',
-                r'флот - ([\d.]+)'
-            ],
-            'trade_rank': r'Торговый ранг - (\d+)',
-            'trade_usage': r'Число используемых торговых путей - (\d+)',
-            'trade_efficiency': r'Эффективность торговли - (\d+)%',
-            'trade_wastes': r'Транспортные издержки - ([\d.]+) ед\.вал',
-            'high_quality_percent': r'Высокого качества - ([\d.]+)%',
-            'mid_quality_percent': r'Среднего качества - ([\d.]+)%',
-            'low_quality_percent': r'Низкого качества - ([\d.]+)%',
-            'valgery': r'Вальжерия - ([\d.]+)%',
-            'allegorization': r'Аллегоризация - ([\d.]+)%',
-            'branches_count': r'Количество филиалов - (\d+)',
-            'branches_efficiency': r'Эффективность - ([\d.]+)%',
-            'forex': r'Курс валюты - ([\d.]+)',
-            'trade_income': r'Торговая прибыль - ([\d.]+)',
-        }
-
+        from stats.schemas.economy_schema import build_regex_patterns
+        return build_regex_patterns("basic")
 
 class IndustrialStats(StatsBase):
     processing_production: float = pydantic.Field(..., ge=0, le=100)
@@ -587,112 +486,20 @@ class InnerPoliticsStats(StatsBase):
     @staticmethod
     @override
     def _get_field_groups() -> Dict[str, List[str]]:
-        return {
-            "Государственный аппарат": [
-                'state_apparatus_size', 'state_apparatus_efficiency',
-                'knowledge_level', 'many_children_propoganda',
-                'integrity_of_faith', 'corruption_level'
-            ],
-            "Экономика и социум": [
-                'salt_security', 'poor_level', 'jobless_level',
-                'income_from_scientific', 'small_enterprise_percent',
-                'large_enterprise_count'
-            ],
-            "Управление территорией": [
-                'provinces_count', 'provinces_waste', 'military_equipment',
-                'control'
-            ],
-            "Общественные настроения": [
-                'contentment', 'government_trust', 'many_children_traditions',
-                'sexual_asceticism', 'egocentrism_development'
-            ],
-            "Культура и образование": [
-                'education_level', 'erudition_will', 'cultural_level',
-                'violence_tendency', 'panic_level', 'unemployment_rate'
-            ],
-            "Духовность и убеждения": [
-                'grace_of_the_highest', 'commitment_to_cause',
-                'departure_from_truths'
-            ]
-        }
+        from stats.schemas.inner_politics_schema import build_field_groups
+        return build_field_groups("basic")
 
     @staticmethod
     @override
     def _get_field_names() -> Dict[str, str]:
-        return {
-            'state_apparatus_size': 'Размер бюрократического аппарата (%)',
-            'state_apparatus_efficiency': 'Эффективность бюрократического аппарата (%)',
-            'knowledge_level': 'Уровень образования',
-            'many_children_propoganda': 'Пропаганда многодетности',
-            'integrity_of_faith': 'Целостность веры',
-            'corruption_level': 'Коррупция',
-            'salt_security': 'Солевой достаток (%)',
-            'poor_level': 'Процент бедности',
-            'jobless_level': 'Процент безработицы',
-            'income_from_scientific': 'Доход от научных предприятий (ед.вал.)',
-            'small_enterprise_percent': 'Процент предпринимателей',
-            'large_enterprise_count': 'Количество крупных предпринимателей',
-            'provinces_count': 'Число провинций',
-            'provinces_waste': 'Траты на одну провинцию (ед.вал.)',
-            'military_equipment': 'ЗВО',
-            'control': 'Контроль (правящая сила, представительство, имеющие силу, автономии)',
-            'contentment': 'Довольство населения',
-            'government_trust': 'Доверие властям',
-            'many_children_traditions': 'Традиции многодетности',
-            'sexual_asceticism': 'Сексуальный аскетизм',
-            'egocentrism_development': 'Эгоцентризм развития',
-            'education_level': 'Образованность',
-            'erudition_will': 'Стремление к эрудиции',
-            'cultural_level': 'Уровень культуры',
-            'violence_tendency': 'Склонность к насилию',
-            'panic_level': 'Паника (%)',
-            'unemployment_rate': 'Процент тунеядства',
-            'grace_of_the_highest': 'Милость Высших',
-            'commitment_to_cause': 'Собственная Убеждённость Делу',
-            'departure_from_truths': 'Отхождение от истин'
-        }
+        from stats.schemas.inner_politics_schema import build_field_names
+        return build_field_names("basic")
 
     @staticmethod
     @override
     def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
-        return {
-            'state_apparatus_size': r'Размер - (\d+)%',
-            'state_apparatus_efficiency': r'Эффективность - (\d+)%',
-            'knowledge_level': r'Уровень образования - ([\d.]+)',
-            'many_children_propoganda': r'Пропаганда многодетности - (\d+)',
-            'integrity_of_faith': r'Целостность веры - (\d+)',
-            'corruption_level': r'Коррупция - (\d+)',
-            'salt_security': r'Солевой достаток - (\d+)%',
-            'poor_level': r'Процент бедности - ([\d.]+)',
-            'jobless_level': r'Процент безработицы - ([\d.]+)',
-            'income_from_scientific': r'Доход от научных предприятий - ([\d.]+) ед\.вал',
-            'small_enterprise_percent': r'Процент предпринимателей - ([\d.]+)',
-            'large_enterprise_count': r'Количество крупных предпринимателей - (\d+)',
-            'provinces_count': r'Число провинций - (\d+)',
-            'provinces_waste': r'Траты на одну - ([\d.]+) ед\.вал',
-            'military_equipment': r'ЗВО - ([\d.]+)',
-            'control': [
-                r'Правящая сила - ([\d.]+)%',
-                r'Представительство - ([\d.]+)%',
-                r'Имеющие силу - ([\d.]+)%',
-                r'Автономии - ([\d.]+)%'
-            ],
-            'contentment': r'Довольство населения - (\d+)',
-            'government_trust': r'Доверие властям - ([\d.]+)',
-            'many_children_traditions': r'Традиции многодетности - (\d+)',
-            'sexual_asceticism': r'Сексуальный аскетизм - ([\d.]+)',
-            'egocentrism_development': r'Эгоцентризм развития - ([\d.]+)',
-            'education_level': r'Образованность - ([\d.]+)',
-            'erudition_will': r'Стремление к эрудиции - (\d+)',
-            'cultural_level': r'Уровень культуры - (\d+)',
-            'violence_tendency': r'Склонность к насилию - ([\d.]+)',
-            'panic_level': r'Паника - ([\d.]+)%',
-            'unemployment_rate': r'Процент тунеядства - ([\d.]+)',
-            'grace_of_the_highest': r'Милость Высших - (\d+)',
-            'commitment_to_cause': r'Собственная Убеждённость Делу - (\d+)',
-            'departure_from_truths': r'Отхождение от истин - (\d+)'
-        }
-
+        from stats.schemas.inner_politics_schema import build_regex_patterns
+        return build_regex_patterns("basic")
 
 class AgricultureStats(StatsBase):
     husbandry: float
@@ -789,69 +596,18 @@ class AgricultureStats(StatsBase):
     @staticmethod
     @override
     def _get_field_groups() -> Dict[str, List[str]]:
-        return {
-            "Распределение отраслей": [
-                'husbandry', 'livestock', 'others'
-            ],
-            "Природные условия": [
-                'biome_richness', 'overprotective_effects'
-            ],
-            "Обеспеченности": [
-                'securities'
-            ],
-            "Экономические показатели": [
-                'agriculture_wastes', 'expected_wastes',
-                'income_from_resources'
-            ],
-            "Качественные показатели": [
-                'agriculture_deceases', 'agriculture_natural_deceases',
-                'food_diversity'
-            ]
-        }
+        from stats.schemas.agriculture_schema import build_field_groups
+        return build_field_groups("basic")
 
     @staticmethod
     @override
     def _get_field_names() -> Dict[str, str]:
-        return {
-            'husbandry': 'Земледелие (%)',
-            'livestock': 'Животноводство (%)',
-            'others': 'Иное (%)',
-            'biome_richness': 'Богатство биомов (%)',
-            'overprotective_effects': 'Эффекты от сверхплодородных земель',
-            'securities': 'Обеспеченности (рабочие, технологии, орудия труда)',
-            'agriculture_wastes': 'Траты (ед.вал.)',
-            'expected_wastes': 'Ожидаемые траты (ед.вал.)',
-            'agriculture_deceases': 'Хвори сельхоза (%)',
-            'agriculture_natural_deceases': 'Ненастья и естественные проблемы сельхоза (%)',
-            'income_from_resources': 'Доход от редкой и дорогой еды (ед.вал.)',
-            'food_diversity': 'Пищевое разнообразие (%)',
-            'food_security': 'Обеспеченность едой',
-            'agriculture_efficiency': 'Эффективность сельского хозяйства (%)',
-            'agriculture_development': 'Развитость сельского хозяйства (%)'
-        }
+        from stats.schemas.agriculture_schema import build_field_names
+        return build_field_names("basic")
 
     @staticmethod
     @override
     def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
-        return {
-            'husbandry': r'Земледелие - ([\d.]+)%',
-            'livestock': r'Животноводство - ([\d.]+)%',
-            'others': r'Иное - ([\d.]+)%',
-            'biome_richness': r'Богатство биомов - ([\d.]+)%',
-            'overprotective_effects': r'Эффекты от сверхплодородных земель - (\d+)',
-            'securities': [
-                r'Рабочими - ([\d.]+)%',
-                r'Технологиями возделывания - ([\d.]+)%',
-                r'Удобрениями, средствами, орудиями труда - ([\d.]+)%'
-            ],
-            'agriculture_wastes': r'Траты - ([\d.]+) ед\.вал',
-            'agriculture_deceases': r'Хвори сельхоза - ([\d.]+)',
-            'agriculture_natural_deceases': r'Ненастья и естественные проблемы сельхоза - ([\d.]+)',
-            'income_from_resources': r'Доход от редкой и дорогой еды - ([\d.]+) ед\.вал',
-            'food_diversity': r'Пищевое разнообразие - ([\d.]+)%',
-            'expected_wastes': r'Ожидаемые траты - ([\d.]+) ед\.вал'
-        }
+        from stats.schemas.agriculture_schema import build_regex_patterns
+        return build_regex_patterns("basic")
 
-
-BASIC_STATS = Tuple[
-    EconomyStats, IndustrialStats, InnerPoliticsStats, AgricultureStats]

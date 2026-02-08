@@ -1,22 +1,29 @@
-from functions.base import BaseInMoveFunctions
+"""Mode-specific helper functions for Atterium stats.
+
+These functions are referenced from Atterium stat models (e.g. society decline).
+They are intentionally independent from *in-move* functions.
+"""
 
 
-class AtteriumStatsFunctions(BaseInMoveFunctions):
+class AtteriumStatsFunctions:
 
     @staticmethod
-    def calculate_trade_income(technology_percent: float,
-                               resources_percent: float,
-                               trade_potential: float,
-                               trade_usage: int, trade_efficiency: float,
-                               trade_wastes: float) -> float:
-        pure_income = min(technology_percent, 100) * 5 + min(
-            resources_percent, 750)
+    def calculate_trade_income(
+            technology_percent: float,
+            resources_percent: float,
+            trade_potential: float,
+            trade_usage: int,
+            trade_efficiency: float,
+            trade_wastes: float,
+    ) -> float:
+        pure_income = min(technology_percent, 100) * 5 + min(resources_percent,
+                                                             750)
         efficiency_factor = (
-                trade_efficiency / 100) if trade_usage <= trade_potential else (
-                trade_efficiency / 200)
+                    trade_efficiency / 100) if trade_usage <= trade_potential else (
+                    trade_efficiency / 200)
         base_income = (
-            trade_usage / 48 if trade_usage <= trade_potential else trade_usage / 78)
-
+                    trade_usage / 48) if trade_usage <= trade_potential else (
+                    trade_usage / 78)
         return base_income + pure_income * efficiency_factor - trade_wastes
 
     @staticmethod
@@ -35,31 +42,31 @@ class AtteriumStatsFunctions(BaseInMoveFunctions):
             grace_of_the_highest: int,
             commitment_to_cause: int,
             departure_from_truths: int,
-            equality: float
+            equality: float,
     ) -> float:
-        """Считает упадок общества"""
+        """Считает упадок общества."""
+
         positive_factors = (
-                contentment * 0.04 +
-                government_trust * 0.19 +
-                many_children_traditions * 0.04 +
-                sexual_asceticism * 0.3 +
-                education_level * 0.04 +
-                erudition_will * 0.074 +
-                cultural_level * 0.04 +
-                grace_of_the_highest * 0.8 +
-                commitment_to_cause * 0.14 +
-                equality * 0.16
+                contentment * 0.04
+                + government_trust * 0.19
+                + many_children_traditions * 0.04
+                + sexual_asceticism * 0.3
+                + education_level * 0.04
+                + erudition_will * 0.074
+                + cultural_level * 0.04
+                + grace_of_the_highest * 0.8
+                + commitment_to_cause * 0.14
+                + equality * 0.16
         )
 
         negative_factors = (
-                violence_tendency * 0.3 +  # + 2
-                egocentrism_development * 0.15 +
-                capitalism_decay * 0.2 +
-                unemployment_rate * 0.15 +
-                departure_from_truths * 0.9
+                violence_tendency * 0.3
+                + egocentrism_development * 0.15
+                + capitalism_decay * 0.2
+                + unemployment_rate * 0.15
+                + departure_from_truths * 0.9
         )
 
         societal_decline = max(0.0, negative_factors - positive_factors)
         societal_decline = min(societal_decline, 100)
-
         return round(societal_decline, 2)

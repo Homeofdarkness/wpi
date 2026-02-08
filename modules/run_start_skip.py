@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Optional, Dict, Type, TypeVar, Generic
 
@@ -52,11 +52,11 @@ class StatsConfig:
 
 @dataclass
 class GameStats:
-    """Контейнер для всех статистик игры"""
-    Economy: EconomyStats
-    Industry: IndustrialStats
-    Agriculture: AgricultureStats
-    InnerPolitics: InnerPoliticsStats
+    """Container for all stats."""
+    Economy: StatsBase
+    Industry: StatsBase
+    Agriculture: StatsBase
+    InnerPolitics: StatsBase
 
 
 class InputSection:
@@ -183,7 +183,7 @@ class DataInputHandler:
 class StartSkipMoveBase(ABC, Generic[
     T_Economy, T_Industry, T_Agriculture, T_InnerPolitics]):
     """Базовый абстрактный класс для инициализации игры"""
-    mode: Optional[GameModes] = None
+    mode: Optional[GameModes] = field(default=None, init=False)
 
     def __post_init__(self):
         self._stats_config = self.get_stats_config()
@@ -286,63 +286,23 @@ class StartSkipMoveBase(ABC, Generic[
 
 
 @dataclass
-class BasicStartSkipMove(
-    StartSkipMoveBase[
-        EconomyStats,
-        IndustrialStats,
-        AgricultureStats,
-        InnerPoliticsStats
-    ]
-):
-    """Базовая реализация инициализации"""
+class ConfiguredStartSkipMove(StartSkipMoveBase[StatsBase, StatsBase, StatsBase, StatsBase]):
+    """Start-skip implementation configured with a :class:`StatsConfig`.
+
+    This removes the need for separate Basic/Atterium/Isf classes that differed
+    only by which Stats classes they used.
+    """
+
+    stats_config: StatsConfig
 
     def get_stats_config(self) -> StatsConfig:
-        """Возвращает конфигурацию базовых классов статистик"""
-        return StatsConfig(
-            economy_class=EconomyStats,
-            industry_class=IndustrialStats,
-            agriculture_class=AgricultureStats,
-            inner_politics_class=InnerPoliticsStats
-        )
+        return self.stats_config
 
 
-@dataclass
-class AtteriumStartSkipMove(
-    StartSkipMoveBase[
-        AtteriumEconomyStats,
-        AtteriumIndustrialStats,
-        AtteriumAgricultureStats,
-        AtteriumInnerPoliticsStats
-    ]
-):
-    """Реализация инициализации для Atterium"""
+# Backwards-compatible aliases (optional):
+# If you previously imported BasicStartSkipMove/AtteriumStartSkipMove/IsfStartSkipMove,
+# they are now simple constructors around ConfiguredStartSkipMove.
 
-    def get_stats_config(self) -> StatsConfig:
-        """Возвращает конфигурацию классов статистик для Atterium"""
-        return StatsConfig(
-            economy_class=AtteriumEconomyStats,
-            industry_class=AtteriumIndustrialStats,
-            agriculture_class=AtteriumAgricultureStats,
-            inner_politics_class=AtteriumInnerPoliticsStats
-        )
-
-
-@dataclass
-class IsfStartSkipMove(
-    StartSkipMoveBase[
-        IsfEconomyStats,
-        IsfIndustrialStats,
-        IsfAgricultureStats,
-        IsfInnerPoliticsStats
-    ]
-):
-    """Реализация инициализации для Isf"""
-
-    def get_stats_config(self) -> StatsConfig:
-        """Возвращает конфигурацию классов статистик для Isf"""
-        return StatsConfig(
-            economy_class=IsfEconomyStats,
-            industry_class=IsfIndustrialStats,
-            agriculture_class=IsfAgricultureStats,
-            inner_politics_class=IsfInnerPoliticsStats
-        )
+def make_start_skip_move(config: StatsConfig) -> ConfiguredStartSkipMove:
+    """Factory helper to build a configured start-skip engine."""
+    return ConfiguredStartSkipMove(stats_config=config)

@@ -314,9 +314,13 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         return -0.131 * corruption_level + 1.077
 
     @classmethod
-    def calculate_knowledge(cls, population_count: int,
-                            knowledge_wastes: float) -> float:
+    def calculate_knowledge(
+            cls,
+            population_count: int,
+            knowledge_wastes: float
+    ) -> float:
         """Предсказывает образованность"""
+        # TODO: Пересмотреть взгляд на формулу
         expected_wastes = population_count / 28000
         constant = (knowledge_wastes / population_count) * 1e4
         minimal_knowledge = round((knowledge_wastes / population_count) * (

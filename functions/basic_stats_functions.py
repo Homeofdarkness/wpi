@@ -46,9 +46,12 @@ class BasicStatsFunctions:
         decrement = 1 - (abs(processing_production - processing_usage) / max(
             processing_production, processing_usage))
 
-        return min((
-                           industry_coefficient_base - industry_coefficient_loss) * decrement,
-                   100)
+        return min(
+            (
+                    industry_coefficient_base - industry_coefficient_loss
+            ) * decrement,
+            100
+        )
 
     @staticmethod
     def calculate_civil_usage(civil_security: float, tvr1: float,
@@ -101,9 +104,11 @@ class BasicStatsFunctions:
 
     # Inner Politics
     @staticmethod
-    def calculate_success_chance(knowledge_level: float,
-                                 education_level: float,
-                                 erudition_will: float) -> float:
+    def calculate_success_chance(
+            knowledge_level: float,
+            education_level: float,
+            erudition_will: float
+    ) -> float:
         """Расчет шанса на успех"""
         return random.gauss(knowledge_level + education_level,
                             (erudition_will / 10) ** -1) // 2
