@@ -310,7 +310,7 @@ class BasicSkipMove(SkipMoverBase):
                 self.Agriculture.others,
             )
         self.Agriculture.food_diversity = \
-            self.InMoveFunctions.calculate_food_food_diversity(
+            self.InMoveFunctions.calculate_food_diversity(
                 self.Agriculture.husbandry,
                 self.Agriculture.livestock,
                 self.Agriculture.others,

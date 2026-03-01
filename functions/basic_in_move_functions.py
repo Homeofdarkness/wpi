@@ -209,7 +209,7 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         return (sum(securities) / len(securities)) * min(1.0, coefficient)
 
     @staticmethod
-    def calculate_food_food_diversity(
+    def calculate_food_diversity(
             husbandry: float,
             livestock: float,
             others: float,
