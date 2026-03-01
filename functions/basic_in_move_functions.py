@@ -171,15 +171,29 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
             securities: List[float],
             workers_count: float,
             biome_richness: float,
-            food_diversity: float
+            food_diversity: float,
+            husbandry: float,
+            livestock: float,
+            others: float,
     ) -> float:
         pure_coefficient = InbuiltFunctions.tanh(
             (securities[1] + securities[2] + securities[3]) / 100
         )
         interconnection_percent = workers_count * (
                 securities[1] + securities[2] + securities[3]) / 3
+
+        standard_deviation = (
+            (
+                    abs(husbandry - 40)
+                    + abs(livestock - 40)
+                    + abs(others - 20)
+            )
+        )
+        if standard_deviation > 0:
+            standard_deviation /= 3
+
         return (((
-                         interconnection_percent / biome_richness) + food_diversity) / 1.3) * pure_coefficient * 10
+                         interconnection_percent / biome_richness) + food_diversity) / standard_deviation) * pure_coefficient * 10
 
     @staticmethod
     def calculate_agriculture_efficiency(

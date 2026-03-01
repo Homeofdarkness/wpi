@@ -322,6 +322,9 @@ class BasicSkipMove(SkipMoverBase):
                 results.workers_count,
                 self.Agriculture.biome_richness,
                 self.Agriculture.food_diversity,
+                self.Agriculture.husbandry,
+                self.Agriculture.livestock,
+                self.Agriculture.others,
             )
         self.Agriculture.agriculture_efficiency = \
             self.InMoveFunctions.calculate_agriculture_efficiency(
