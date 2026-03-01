@@ -76,7 +76,8 @@ class EconomyStats(StatsBase):
 
         return BasicStatsFunctions.calculate_trade_potential(
             self.trade_rank,
-            self.trade_efficiency)
+            self.trade_efficiency
+        )
 
     @trade_potential.setter
     def trade_potential(self, value):
@@ -510,71 +511,44 @@ class AgricultureStats(StatsBase):
     biome_richness: float
     overprotective_effects: int
     securities: list
+    workers_redistribution: int
+    storages_upkeep: float
+    consumption_factor: float
     agriculture_wastes: float
     agriculture_deceases: float
     agriculture_natural_deceases: float
     income_from_resources: float
-    food_diversity: float
+    overstock_percent: float
+
+    # Semi-dynamic param
+    food_supplies: float = 0
+
+    # Dynamic params (calculated in skip-move)
     expected_wastes: float = None
+    food_security: float = None
+    food_diversity: float = None
+    agriculture_efficiency: float = None
+    agriculture_development: float = None
 
     def __init__(self, /, **data: Any):
         super().__init__(**data)
 
-        self._food_security = None
-        self._agriculture_efficiency = None
-        self._agriculture_development = None
-
-    @property
-    def food_security(self):
-        if self._food_security is not None:
-            return self._food_security
-
-        return round(
-            BasicStatsFunctions.calculate_approximate_food_security(
-                self.biome_richness, self.overprotective_effects,
-                self.securities))
-
-    @food_security.setter
-    def food_security(self, value):
-        self._food_security = value
-
-    @property
-    def agriculture_efficiency(self):
-        if self._agriculture_efficiency is not None:
-            return self._agriculture_efficiency
-
-        return BasicStatsFunctions.calculate_approximate_agriculture_efficiency(
-            self.securities)
-
-    @agriculture_efficiency.setter
-    def agriculture_efficiency(self, value):
-        self._agriculture_efficiency = value
-
-    @property
-    def agriculture_development(self):
-        if self._agriculture_development is not None:
-            return self._agriculture_development
-
-        return BasicStatsFunctions.calculate_agriculture_development(
-            self.food_security,
-            self.securities)
-
-    @agriculture_development.setter
-    def agriculture_development(self, value):
-        self._agriculture_development = value
+        # Negative impact on _food_security
+        self.is_negative_food_security = False
 
     @override
     def debug(self) -> str:
         result_string = f"""```СЕЛЬСКОЕ ХОЗЯЙСТВО
 Распределение отраслей - 
-Земледелие - {self.husbandry}%                        Животноводство - {self.livestock}%                    Иное - {self.others}%
+Земледелие - {self.husbandry}%                        Животноводство - {self.livestock}%                    Рыболовство - {self.others}%
 Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
 Обеспеченности:
-Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами, орудиями труда - {self.securities[2]}%
+Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами - {self.securities[2]}%                Орудия труда - {self.securities[3]}%
+Рабочее перераспределение - {self.workers_redistribution}%                  Содержание хранилищ (1 к 39) - {round(self.storages_upkeep, 3)} ед.вал.              Коэффициент потребления - {self.consumption_factor}%
 Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - хз%
 Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
-Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                        Пищевое разнообразие - {self.food_diversity}%
-Эффективность сельского хозяйства - хз                    Развитость сельского хозяйства - хз% ```
+Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                        Пищевое разнообразие - {self.food_diversity}%            Изъять из потребления - {self.overstock_percent}%
+Эффективность сельского хозяйства - хз                    Развитость сельского хозяйства - хз%                            Запасы пищи - хз```
 """
 
         return result_string
@@ -583,14 +557,15 @@ class AgricultureStats(StatsBase):
     def __str__(self) -> str:
         result_string = f"""```СЕЛЬСКОЕ ХОЗЯЙСТВО
 Распределение отраслей - 
-Земледелие - {self.husbandry}%                        Животноводство - {self.livestock}%                    Иное - {self.others}%
+Земледелие - {self.husbandry}%                        Животноводство - {self.livestock}%                    Рыболовство - {self.others}%
 Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
 Обеспеченности:
-Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами, орудиями труда - {self.securities[2]}%
-Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - {round(self.food_security, 3)}%
+Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами - {self.securities[2]}%                Орудия труда - {self.securities[3]}%
+Рабочее перераспределение - {self.workers_redistribution}%                  Содержание хранилищ (1 к 39) - {round(self.storages_upkeep, 3)} ед.вал.              Коэффициент потребления - {self.consumption_factor}%
+Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - {"!" if self.is_negative_food_security else ""}{round(self.food_security, 3)}%
 Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
-Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                        Пищевое разнообразие - {self.food_diversity}%
-Эффективность сельского хозяйства - {round(self.agriculture_efficiency)}%                    Развитость сельского хозяйства - {round(self.agriculture_development, 2)}% ```
+Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                        Пищевое разнообразие - {self.food_diversity}%            Изъять из потребления - {self.overstock_percent}%
+Эффективность сельского хозяйства - {round(self.agriculture_efficiency)}%                    Развитость сельского хозяйства - {round(self.agriculture_development, 2)}%                     Запасы пищи - {round(self.food_supplies, 2)}```
 """
 
         return result_string

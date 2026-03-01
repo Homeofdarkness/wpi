@@ -1,11 +1,11 @@
-from typing import List, Tuple, Dict, Union
+from typing import List, Dict, Union
 
 import pydantic
 from typing_extensions import override
 
 from functions.atterium_stats_functions import AtteriumStatsFunctions
 from functions.basic_stats_functions import BasicStatsFunctions
-from stats.basic_stats import IndustrialStats
+from stats.basic_stats import IndustrialStats, AgricultureStats
 from stats.stats_base import StatsBase
 
 
@@ -167,93 +167,13 @@ class AtteriumEconomyStats(StatsBase):
         from stats.schemas.economy_schema import build_regex_patterns
         return build_regex_patterns("atterium")
 
+
 class AtteriumIndustrialStats(IndustrialStats):
     """Механики одинаковые и слава Богу """
     pass
 
 
-class AtteriumAgricultureStats(StatsBase):
-    husbandry: float
-    livestock: float
-    others: float
-    biome_richness: float
-    overprotective_effects: int
-    securities: List[float]
-    agriculture_wastes: float
-    agriculture_deceases: float
-    agriculture_natural_deceases: float
-    income_from_resources: float
-    food_diversity: float
-    expected_wastes: float = None
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        self._food_security = None
-        self._agriculture_efficiency = None
-        self._agriculture_development = None
-
-    @property
-    def food_security(self):
-        if self._food_security is not None:
-            return self._food_security
-        return round(BasicStatsFunctions.calculate_approximate_food_security(
-            self.biome_richness, self.overprotective_effects, self.securities))
-
-    @food_security.setter
-    def food_security(self, value):
-        self._food_security = value
-
-    @property
-    def agriculture_efficiency(self):
-        if self._agriculture_efficiency is not None:
-            return self._agriculture_efficiency
-        return BasicStatsFunctions.calculate_approximate_agriculture_efficiency(
-            self.securities)
-
-    @agriculture_efficiency.setter
-    def agriculture_efficiency(self, value):
-        self._agriculture_efficiency = value
-
-    @property
-    def agriculture_development(self):
-        if self._agriculture_development is not None:
-            return self._agriculture_development
-        return BasicStatsFunctions.calculate_agriculture_development(
-            self.food_security, self.securities)
-
-    @agriculture_development.setter
-    def agriculture_development(self, value):
-        self._agriculture_development = value
-
-    @override
-    def debug(self) -> str:
-        result_string = f"""```СЕЛЬСКОЕ ХОЗЯЙСТВО
-Распределение отраслей - 
-Земледелие - {self.husbandry}%                        Животноводство - {self.livestock}%                    Иное - {self.others}%
-Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
-Обеспеченности:
-Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами, орудиями труда - {self.securities[2]}%
-Ожидаемые траты - хз ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - хз%
-Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
-Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                  Пищевое разнообразие - {self.food_diversity}% 
-Эффективность сельского хозяйства - хз%                    Развитость сельского хозяйства - хз% ```
-"""
-        return result_string
-
-    @override
-    def __str__(self) -> str:
-        result_string = f"""```СЕЛЬСКОЕ ХОЗЯЙСТВО
-Распределение отраслей - 
-Земледелие - {self.husbandry}%                        Животноводство - {self.livestock}%                    Иное - {self.others}%
-Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
-Обеспеченности:
-Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами, орудиями труда - {self.securities[2]}%
-Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - {round(self.food_security, 3)}% 
-Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
-Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                  Пищевое разнообразие - {self.food_diversity}% 
-Эффективность сельского хозяйства - {round(self.agriculture_efficiency)}%                    Развитость сельского хозяйства - {round(self.agriculture_development, 2)}% ```
-"""
-        return result_string
+class AtteriumAgricultureStats(AgricultureStats):
 
     @staticmethod
     @override
@@ -272,6 +192,7 @@ class AtteriumAgricultureStats(StatsBase):
     def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
         from stats.schemas.agriculture_schema import build_regex_patterns
         return build_regex_patterns("atterium")
+
 
 class AtteriumInnerPoliticsStats(StatsBase):
     state_apparatus_functionality: float
@@ -409,4 +330,3 @@ Cвязь Федерации с Республиками - {self.state_apparatus
     def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
         from stats.schemas.inner_politics_schema import build_regex_patterns
         return build_regex_patterns("atterium")
-

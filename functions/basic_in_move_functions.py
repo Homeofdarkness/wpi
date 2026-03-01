@@ -1,5 +1,8 @@
+import math
 import random
 from typing import List, Tuple
+
+import numpy as np
 
 from functions.base import BaseInMoveFunctions
 from functions.inbuilt import InbuiltFunctions
@@ -32,35 +35,158 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         return (population_count // 10000) * 0.34
 
     @staticmethod
-    def calculate_agriculture_base_wastes(biome_richness: float,
-                                          agriculture_development: float,
-                                          C=500, K=7) -> float:
-        """Рассчитывает базовый коэффициент затрат на сельское хозяйство."""
-        biome_factor = max(0.05,
-                           (100 - biome_richness) / (110 - biome_richness))
-        development_factor = max(0.1, (100 - agriculture_development) / (
-                110 - agriculture_development))
+    def calculate_workers_count(
+            population_count: int,
+            workers_percent: float,
+            workers_redistribution: int
+    ) -> int:
+        """Считает количество рабочих"""
+        workers_calculation_rules = [
+            {
+                "gt": 0,
+                "le": 1_000_000,
+                "count_per_percent": 5000
+            },
+            {
+                "gt": 1_000_000,
+                "le": 10_000_000,
+                "count_per_percent": 100_000
+            },
+            {
+                "gt": 10_000_000,
+                "le": 50_000_000,
+                "count_per_percent": 275_000
+            },
+            {
+                "gt": 50_000_000,
+                "le": 125_000_000,
+                "count_per_percent": 500_000
+            },
+            {
+                "gt": 125_000_000,
+                "le": 200_000_000,
+                "count_per_percent": 1_000_000
+            },
+            {
+                "gt": 200_000_000,
+                "le": 400_000_000,
+                "count_per_percent": 2_000_000
+            },
+            {
+                "gt": 400_000_000,
+                "le": 500_000_000,
+                "count_per_percent": 2_500_000
+            },
+            {
+                "gt": 500_000_000,
+                "le": float('inf'),
+                "count_per_percent": 5_000_000
+            }
+        ]
 
-        base_cost = C * (biome_factor + development_factor) * K
-        return max(base_cost / 1000, 1)
+        for rule in workers_calculation_rules:
+            if rule["gt"] < population_count <= rule["le"]:
+                count_per_percent = rule["count_per_percent"] * (
+                        1 - workers_redistribution / 10)
+                return round(count_per_percent * workers_percent)
 
-    @classmethod
-    def calculate_agriculture_wastes(cls, population_count: int,
-                                     securities: List[float],
-                                     biome_richness: float,
-                                     agriculture_development: float) -> float:
-        """Считает ожидаемые траты на СХ"""
-        base_cost = cls.calculate_agriculture_base_wastes(biome_richness,
-                                                          agriculture_development)
-        influence_factor = sum(
-            securities) / 100  # Преобразуем проценты в коэффициент
-        expenses = (population_count / 250000) * influence_factor * base_cost
-        return expenses
+        return 0
 
     @staticmethod
-    def calculate_agriculture_efficiency(securities: List[float],
-                                         wastes: float,
-                                         expected_wastes: float) -> float:
+    def calculate_additional_wastes(
+            security_percent: float
+    ) -> float:
+        """Считает стоимость каждого рабочего"""
+        # Прогнать в линейную регрессию
+        calculation_rules = [
+            {
+                "gt": 0,
+                "le": 20,
+                "count_per_worker": 0.5
+            },
+            {
+                "gt": 20,
+                "le": 40,
+                "count_per_worker": 0.75
+            },
+            {
+                "gt": 40,
+                "le": 60,
+                "count_per_worker": 1
+            },
+            {
+                "gt": 60,
+                "le": 80,
+                "count_per_worker": 1.5
+            },
+            {
+                "gt": 80,
+                "le": 100,
+                "count_per_worker": 2
+            },
+            {
+                "gt": 100,
+                "le": float('inf'),
+                "count_per_worker": 3
+            },
+        ]
+
+        for rule in calculation_rules:
+            if rule["gt"] < security_percent <= rule["le"]:
+                return rule["count_per_worker"]
+
+        return 3
+
+    @classmethod
+    def calculate_agriculture_wastes(
+            cls,
+            workers_count: int,
+            securities: List[float],
+            husbandry: float,
+            livestock: float,
+            others: float
+    ) -> float:
+        """Считает ожидаемые траты на СХ"""
+        (
+            workers_percent,
+            technology_percent,
+            fertilizer_percent,
+            tool_percent
+        ) = securities
+
+        workers_wastes = workers_count * (
+                cls.calculate_additional_wastes(technology_percent)
+                + cls.calculate_additional_wastes(fertilizer_percent)
+                + cls.calculate_additional_wastes(tool_percent)
+        ) / 10000
+
+        workers_wastes *= (1 + husbandry * 0.0028)
+        workers_wastes *= (1 + livestock * 0.005)
+        workers_wastes *= (1 + others * 0.0035)
+
+        return workers_wastes
+
+    @staticmethod
+    def calculate_agriculture_development(
+            securities: List[float],
+            workers_count: float,
+            biome_richness: float,
+            food_diversity: float
+    ) -> float:
+        pure_coefficient = InbuiltFunctions.tanh(
+            (securities[1] + securities[2] + securities[3]) / 100
+        )
+        interconnection_percent = workers_count * (
+                securities[1] + securities[2] + securities[3]) / 3
+        return (((
+                         interconnection_percent / biome_richness) + food_diversity) / 1.3) * pure_coefficient * 10
+
+    @staticmethod
+    def calculate_agriculture_efficiency(
+            securities: List[float],
+            wastes: float,
+            expected_wastes: float
+    ) -> float:
         """Считает эффективность СХ"""
         if expected_wastes <= 0:
             return 0
@@ -69,28 +195,106 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         return (sum(securities) / len(securities)) * min(1.0, coefficient)
 
     @staticmethod
-    def calculate_food_security_spotter(agriculture_efficiency: float,
-                                        biome_richness: float,
-                                        overproduction_effects: int) -> float:
-        """Считает отклонение обеспеченности едой"""
-        stock = 0 if agriculture_efficiency < 75 else overproduction_effects * 6
-        stock *= (1 + (biome_richness / 1000))
-        food_security = round((InbuiltFunctions.parabola(
-            agriculture_efficiency / 10, 2, 4, 10) + stock))
+    def calculate_food_food_diversity(
+            husbandry: float,
+            livestock: float,
+            others: float,
+            biome_richness: float
+    ) -> float:
+        """Считает пищевое разнообразие"""
+        base = biome_richness
 
-        return food_security
+        standard_deviation = (
+            (
+                    abs(husbandry - 40)
+                    + abs(livestock - 40)
+                    + abs(others - 20)
+            )
+        )
+        if standard_deviation > 0:
+            standard_deviation /= 3
+
+        return base - standard_deviation
+
+    @classmethod
+    def calculate_food_income(
+            cls,
+            workers_count: int,
+            securities: List[float],
+            overprotective_effects: float,
+            agriculture_deceases: float,
+            agriculture_natural_deceases: float,
+    ) -> float:
+        """Считает обеспеченность едой"""
+        (
+            workers_percent,
+            technology_percent,
+            fertilizer_percent,
+            tool_percent
+        ) = securities
+        base = 0.25
+        costs_per_workers = (
+                cls.calculate_additional_wastes(technology_percent)
+                + cls.calculate_additional_wastes(fertilizer_percent)
+                + cls.calculate_additional_wastes(tool_percent)
+        )
+        costs_per_workers -= base * 3
+        coefficient = (costs_per_workers / base) * 1.75
+
+        food_income = (workers_count / 10000) * (coefficient + 10)
+
+        food_income *= (1 + (overprotective_effects / 100))
+        food_income *= (1 - (agriculture_deceases / 100))
+        food_income *= (1 - (agriculture_natural_deceases / 100))
+
+        return food_income
+
+    @staticmethod
+    def calculate_food_consumption(
+            population_count: int,
+            consumption_factor: float,
+    ) -> float:
+        return (population_count / 10000) * (2.5 + (0.1 * consumption_factor))
+
+    @classmethod
+    def calculate_food_security(
+            cls,
+            food_income: float,
+            food_consumption: float,
+    ) -> float:
+        """Считает обеспеченность едой"""
+        return food_income - food_consumption
+
+    @staticmethod
+    def calculate_food_supplies(
+            current_food_supplies: float,
+            food_security: float,
+            overstock_percent: float,
+            storages_upkeep: float
+    ) -> float:
+        food_supplies = current_food_supplies
+        available_storage = storages_upkeep * 39
+        food_supplies += max(
+            food_security - 400,
+            food_security * overstock_percent
+        )
+
+        return min(food_supplies, available_storage)
 
     @staticmethod
     def calculate_goods_coefficient(goods_count: int) -> float:
         """Считает коэффициент в зависимости от достатка товаров"""
-        if goods_count == 100:
+        if goods_count >= 100:
             return 1.1
         return 0.004 * goods_count + 0.66
 
     @staticmethod
-    def calculate_stability_coefficient(poor_level: float,
-                                        jobless_level: float, med_waste: float,
-                                        population: int) -> float:
+    def calculate_stability_coefficient(
+            poor_level: float,
+            jobless_level: float,
+            med_waste: float,
+            population: int
+    ) -> float:
         """Расчет коэффициента стабильности с учетом затрат на здравоохранение на 1000 человек"""
 
         if population <= 0:
@@ -121,13 +325,15 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
 
     @staticmethod
     def calculate_income_coefficient_based_on_agriculture(
-            agriculture_efficiency: float,
-            agriculture_development: float,
-            food_security_spotter: float) -> float:
+            food_security: float
+    ) -> float:
         """Считает (де)бафф прироста в зависимости от СХ"""
-        return ((((2 * agriculture_development * agriculture_efficiency) /
-                  (
-                          agriculture_development + agriculture_efficiency)) - food_security_spotter) ** 0.5) / 8
+        if food_security <= 100:
+            return 0.45 + 0.55 * (food_security / 100) ** 2
+        elif food_security <= 150:
+            return 1 + 0.15 * ((food_security - 100) / 50) ** 2
+        else:
+            return 1.15
 
     @staticmethod
     def calculate_income_coefficient_based_on_social_decline(
@@ -149,14 +355,47 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
 
     @staticmethod
     def calculate_population_decrement_coefficient(
-            decrement_coefficient: int) -> float:
+            decrement_coefficient: int
+    ) -> float:
         """Считает УНЧС"""
         return -0.01 * decrement_coefficient + 1
 
     @staticmethod
-    def calculate_industry_income(gov_wastes: List[float], civil_usage: float,
-                                  max_potential: float,
-                                  expected_wastes: float) -> float:
+    def calculate_population_underfeed(
+            population_count: int,
+            food_security: float,
+            biome_richness: float,
+            death_probability: float = 0.36
+    ) -> int:
+        shortage = max(0.0, -food_security)
+        if shortage <= 0:
+            return 0
+
+        total_need = (population_count / 10000.0) * 2.5
+        shortage_fraction = min(1.0, shortage / total_need)
+
+        at_risk = int(math.ceil(population_count * shortage_fraction))
+
+        # каждые 10% -> минус 2% от вероятности (относительно)
+        reduction = 0.02 * (biome_richness / 10.0)
+        p_eff = float(
+            np.clip(death_probability * (1.0 - reduction), 0.12, 0.36)
+        )
+
+        rng = np.random.default_rng()
+        deaths = int(rng.binomial(at_risk, p_eff))
+
+        # biome: каждые 10% -> минус 5% от смертей
+        reduction = 0.05 * (biome_richness / 10.0)
+        return max(0, round(deaths * (1.0 - reduction)))
+
+    @staticmethod
+    def calculate_industry_income(
+            gov_wastes: List[float],
+            civil_usage: float,
+            max_potential: float,
+            expected_wastes: float
+    ) -> float:
         """Считает ПСС"""
         average_gov_wastes = sum(gov_wastes) / len(gov_wastes)
         adjusted_wastes = max(0.0, average_gov_wastes * 0.3 - expected_wastes)
@@ -164,13 +403,16 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         return adjusted_wastes * (max_potential / civil_usage)
 
     @staticmethod
-    def calculate_tax_income(universal_tax: float, excise: float,
-                             additions: float,
-                             small_enterprise_tax: float,
-                             large_enterprise_tax: float,
-                             small_enterprise_percent: float,
-                             large_enterprise_count: float,
-                             population_count: int) -> float:
+    def calculate_tax_income(
+            universal_tax: float,
+            excise: float,
+            additions: float,
+            small_enterprise_tax: float,
+            large_enterprise_tax: float,
+            small_enterprise_percent: float,
+            large_enterprise_count: float,
+            population_count: int
+    ) -> float:
         """Считает доход с налогов (Legacy - возможно надо будет изменить)"""
         universal_tax_income = 1.9882 * (universal_tax / (
                 (8 + universal_tax) * 10)) * population_count / 1000  # УН
@@ -188,15 +430,20 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         return 1 + (integrity_of_faith / 5000)
 
     @staticmethod
-    def calculate_forex_course(stability: int, income: float, wastes: float,
-                               budget: float,
-                               trade_rank: int, trade_efficiency: float,
-                               trade_overload: float,
-                               industry_efficiency: float,
-                               state_apparatus_efficiency: int,
-                               contentment: int, poor_level: float,
-                               jobless_level: float,
-                               control_data: list) -> float:
+    def calculate_forex_course(
+            stability: int,
+            income: float,
+            wastes: float,
+            budget: float,
+            trade_rank: int,
+            trade_efficiency: float,
+            trade_overload: float,
+            industry_efficiency: float,
+            state_apparatus_efficiency: int,
+            contentment: int, poor_level: float,
+            jobless_level: float,
+            control_data: list
+    ) -> float:
         """Считает курс валют (Legacy - возможно надо будет иземенить)"""
         control = control_data[0] + control_data[1] - control_data[2] - \
                   control_data[3]
@@ -260,6 +507,21 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
     def calculate_inflation_factor(inflation: float) -> float:
         """Считает инфляцию"""
         return 1 - (inflation / 100)
+
+    @staticmethod
+    def calculate_agriculture_factor(
+            current_tax_income: float,
+            agriculture_development: float,
+            workers_count: int
+    ) -> float:
+        """Считает влияние на доход от развитости сельского СХ"""
+        economic_involvement = current_tax_income / 100
+        hyperbolic_percent = economic_involvement * agriculture_development
+
+        base_addition = hyperbolic_percent / 100
+        if workers_count < 1_000_000:
+            return base_addition
+        return base_addition * (workers_count // 1_000_000)
 
     @staticmethod
     def expected_state_apparatus(population_count: int,

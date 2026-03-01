@@ -32,6 +32,8 @@ class CalculationResults:
     contentment_coefficient_1: float
     contentment_coefficient_2: float
     expected_infrastructure_waste: float
+    workers_count: int
+    real_food_security: float | None = None
 
 
 @dataclass

@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, InnerPoliticsStats
 from stats.atterium_stats import (
     AtteriumEconomyStats,
     AtteriumIndustrialStats,
     AtteriumAgricultureStats,
     AtteriumInnerPoliticsStats,
 )
+from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, \
+    InnerPoliticsStats
 from stats.isf_stats import (
     IsfEconomyStats,
     IsfIndustrialStats,
@@ -96,7 +97,8 @@ def make_basic_bundle(*, budget: float = 1000.0) -> BasicBundle:
         others=20.0,
         biome_richness=60.0,
         overprotective_effects=2,
-        securities=[70.0, 70.0, 70.0],
+        securities=[70.0, 70.0, 70.0, 70.0],
+        workers_redistribution=60.0,
         agriculture_wastes=20.0,
         agriculture_deceases=2.0,
         agriculture_natural_deceases=1.0,
@@ -137,13 +139,15 @@ def make_basic_bundle(*, budget: float = 1000.0) -> BasicBundle:
         departure_from_truths=10,
     )
 
-    return BasicBundle(economy=economy, industry=industry, agriculture=agriculture, inner_politics=inner)
+    return BasicBundle(economy=economy, industry=industry,
+                       agriculture=agriculture, inner_politics=inner)
 
 
 def make_atterium_bundle(*, budget: float = 1000.0) -> AtteriumBundle:
     b = make_basic_bundle(budget=budget)
 
-    economy = AtteriumEconomyStats(**b.economy.model_dump(exclude_none=True),
+    economy = AtteriumEconomyStats(
+        **b.economy.model_dump(exclude_none=True),
         plan_efficiency=60.0,
         investment_of_large_companies=5.0,
         freedom_and_efficiency_of_small_business=3.0,
@@ -153,15 +157,19 @@ def make_atterium_bundle(*, budget: float = 1000.0) -> AtteriumBundle:
 
     # Atterium expects 5 gov_wastes entries and 2 other_wastes entries for rendering.
     if len(economy.gov_wastes) < 5:
-        economy.gov_wastes = list(economy.gov_wastes) + [0.0] * (5 - len(economy.gov_wastes))
+        economy.gov_wastes = list(economy.gov_wastes) + [0.0] * (
+                5 - len(economy.gov_wastes))
     if len(economy.other_wastes) > 2:
         economy.other_wastes = list(economy.other_wastes)[:2]
     elif len(economy.other_wastes) < 2:
-        economy.other_wastes = list(economy.other_wastes) + [0.0] * (2 - len(economy.other_wastes))
+        economy.other_wastes = list(economy.other_wastes) + [0.0] * (
+                2 - len(economy.other_wastes))
 
-    industry = AtteriumIndustrialStats(**b.industry.model_dump(exclude_none=True))
+    industry = AtteriumIndustrialStats(
+        **b.industry.model_dump(exclude_none=True))
 
-    agriculture = AtteriumAgricultureStats(**b.agriculture.model_dump(exclude_none=True))
+    agriculture = AtteriumAgricultureStats(
+        **b.agriculture.model_dump(exclude_none=True))
 
     inner = AtteriumInnerPoliticsStats(
         **b.inner_politics.model_dump(exclude_none=True),
@@ -170,7 +178,8 @@ def make_atterium_bundle(*, budget: float = 1000.0) -> AtteriumBundle:
         capitalistic_decay=10.0,
     )
 
-    return AtteriumBundle(economy=economy, industry=industry, agriculture=agriculture, inner_politics=inner)
+    return AtteriumBundle(economy=economy, industry=industry,
+                          agriculture=agriculture, inner_politics=inner)
 
 
 def make_isf_bundle(*, budget: float = 1000.0) -> IsfBundle:
@@ -180,19 +189,20 @@ def make_isf_bundle(*, budget: float = 1000.0) -> IsfBundle:
     econ_dump.pop('small_enterprise_tax')
 
     economy = IsfEconomyStats(**econ_dump,
-        small_business_tax=3.0,
-    )
+                              small_business_tax=3.0,
+                              )
 
     # ISF expects 2 other_wastes entries for rendering (external, occupation).
     if len(economy.other_wastes) > 2:
         economy.other_wastes = list(economy.other_wastes)[:2]
     elif len(economy.other_wastes) < 2:
-        economy.other_wastes = list(economy.other_wastes) + [0.0] * (2 - len(economy.other_wastes))
-
+        economy.other_wastes = list(economy.other_wastes) + [0.0] * (
+                2 - len(economy.other_wastes))
 
     industry = IsfIndustrialStats(**b.industry.model_dump(exclude_none=True))
 
-    agriculture = IsfAgricultureStats(**b.agriculture.model_dump(exclude_none=True),
+    agriculture = IsfAgricultureStats(
+        **b.agriculture.model_dump(exclude_none=True),
         empire_land_unmastery=10.0,
     )
 
@@ -207,4 +217,5 @@ def make_isf_bundle(*, budget: float = 1000.0) -> IsfBundle:
         separatism_of_the_highest=10.0,
     )
 
-    return IsfBundle(economy=economy, industry=industry, agriculture=agriculture, inner_politics=inner)
+    return IsfBundle(economy=economy, industry=industry,
+                     agriculture=agriculture, inner_politics=inner)

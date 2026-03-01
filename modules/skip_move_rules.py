@@ -72,7 +72,6 @@ class BasicSkipMoveRules(SkipMoveRules):
         if expected_logistic <= logistic_wastes:
             params.discount = ctx.economy.gov_wastes[0] * 0.1
         else:
-            params.food_security_spotter = 7
             params.tax_income_coefficient = 0.1
 
         # Salt effects
@@ -88,7 +87,6 @@ class BasicSkipMoveRules(SkipMoveRules):
         if total_control >= 90:
             params.contentment_spotter = min(params.contentment_spotter + 5, 100 - ctx.inner_politics.contentment)
             params.tax_income_coefficient -= 0.05
-            params.food_security_spotter -= 4
         else:
             control_sum = ctx.inner_politics.control[2] + ctx.inner_politics.control[3]
             params.contentment_spotter -= 5
@@ -224,7 +222,6 @@ class IsfSkipMoveRules(BasicSkipMoveRules):
         if expected_logistic <= logistic_wastes:
             params.discount = ctx.economy.gov_wastes[0] * 0.1
         else:
-            params.food_security_spotter = 7
             params.tax_income_coefficient = 0.1
 
         # Salt effects (cap 125)
@@ -242,9 +239,15 @@ class IsfSkipMoveRules(BasicSkipMoveRules):
         )
 
         # Control effects (legacy inverted threshold)
-        total_control = ctx.inner_politics.control[0] + ctx.inner_politics.control[1]
+        total_control = (
+                ctx.inner_politics.control[0]
+                + ctx.inner_politics.control[1]
+        )
         if total_control < 90:
-            params.contentment_spotter = min(params.contentment_spotter + 5, 125 - ctx.inner_politics.contentment)
+            params.contentment_spotter = min(
+                params.contentment_spotter + 5,
+                125 - ctx.inner_politics.contentment
+            )
             params.tax_income_coefficient -= 0.05
             params.food_security_spotter -= 4
         else:

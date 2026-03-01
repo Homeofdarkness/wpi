@@ -114,17 +114,21 @@ class BasicStatsFunctions:
                             (erudition_will / 10) ** -1) // 2
 
     @staticmethod
-    def calculate_society_decline(contentment: int, government_trust: float,
-                                  many_children_traditions: int,
-                                  sexual_asceticism: float,
-                                  egocentrism_development: float,
-                                  education_level: float, erudition_will: int,
-                                  cultural_level: int,
-                                  violence_tendency: float,
-                                  unemployment_rate: float,
-                                  grace_of_the_highest: int,
-                                  commitment_to_cause: int,
-                                  departure_from_truths: int) -> float:
+    def calculate_society_decline(
+            contentment: int,
+            government_trust: float,
+            many_children_traditions: int,
+            sexual_asceticism: float,
+            egocentrism_development: float,
+            education_level: float,
+            erudition_will: int,
+            cultural_level: int,
+            violence_tendency: float,
+            unemployment_rate: float,
+            grace_of_the_highest: int,
+            commitment_to_cause: int,
+            departure_from_truths: int
+    ) -> float:
         """Считает упадок общества"""
         positive_factors = (
                 contentment * 0.05 +
@@ -175,9 +179,11 @@ class BasicStatsFunctions:
         return food_security
 
     @classmethod
-    def calculate_agriculture_development(cls,
-                                          approximate_food_security: float,
-                                          securities: List[float]) -> float:
+    def calculate_agriculture_development(
+            cls,
+            approximate_food_security: float,
+            securities: List[float]
+    ) -> float:
         """Считает развитость СХ"""
         agriculture_efficiency = cls.calculate_approximate_agriculture_efficiency(
             securities)
@@ -190,6 +196,9 @@ class BasicStatsFunctions:
             return min(100.0, sigmoid_result * (100 / 77))
 
     @classmethod
-    def calculate_branches_income(cls, branches_count: int,
-                                  branches_efficiency: float) -> float:
+    def calculate_branches_income(
+            cls,
+            branches_count: int,
+            branches_efficiency: float
+    ) -> float:
         return branches_count * (branches_efficiency / 10)
