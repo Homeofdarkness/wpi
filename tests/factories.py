@@ -97,13 +97,17 @@ def make_basic_bundle(*, budget: float = 1000.0) -> BasicBundle:
         others=20.0,
         biome_richness=60.0,
         overprotective_effects=2,
-        securities=[70.0, 70.0, 70.0, 70.0],
-        workers_redistribution=60.0,
-        agriculture_wastes=20.0,
+        securities=[70.0, 70.0, 70.0],
+        workers_percent=70.0,
+        workers_redistribution=5.0,
         agriculture_deceases=2.0,
         agriculture_natural_deceases=1.0,
         income_from_resources=2.0,
         food_diversity=50.0,
+        storages_upkeep=11.0,
+        consumption_factor=10.0,
+        environmental_food=3,
+        overstock_percent=100
     )
 
     inner = InnerPoliticsStats(

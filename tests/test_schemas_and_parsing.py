@@ -5,20 +5,23 @@ import random
 from stats.basic_stats import EconomyStats
 from stats.atterium_stats import AtteriumEconomyStats
 from stats.isf_stats import IsfEconomyStats
-from stats.schemas.economy_schema import build_field_names, build_regex_patterns
+from stats.schemas.economy_schema import build_field_names
 
-from tests.factories import make_basic_bundle, make_atterium_bundle, make_isf_bundle
+from tests.factories import (
+    make_basic_bundle,
+    make_atterium_bundle,
+    make_isf_bundle
+)
 
 
 def test_economy_schema_builders_match_class_methods():
     assert EconomyStats._get_field_names() == build_field_names("basic")
-    assert EconomyStats._get_regex_patterns() == build_regex_patterns("basic")
-
     assert AtteriumEconomyStats._get_field_names() == build_field_names("atterium")
-    assert AtteriumEconomyStats._get_regex_patterns() == build_regex_patterns("atterium")
-
     assert IsfEconomyStats._get_field_names() == build_field_names("isf")
-    assert IsfEconomyStats._get_regex_patterns() == build_regex_patterns("isf")
+
+    assert EconomyStats._get_pretty_layout() is not None
+    assert AtteriumEconomyStats._get_pretty_layout() is not None
+    assert IsfEconomyStats._get_pretty_layout() is not None
 
 
 def test_common_schema_keys_are_shared_across_modes():

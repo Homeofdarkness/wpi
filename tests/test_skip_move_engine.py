@@ -3,7 +3,11 @@ import random
 from modules.run_skip_move import BasicSkipMove, AtteriumSkipMove, IsfSkipMove
 from utils.user_io import TestIO
 
-from tests.factories import make_basic_bundle, make_atterium_bundle, make_isf_bundle
+from tests.factories import (
+    make_basic_bundle,
+    make_atterium_bundle,
+    make_isf_bundle
+)
 
 
 def test_basic_skip_move_runs_and_returns_report():

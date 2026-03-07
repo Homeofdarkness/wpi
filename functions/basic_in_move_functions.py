@@ -38,57 +38,38 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
     def calculate_workers_count(
             population_count: int,
             workers_percent: float,
-            workers_redistribution: int
+            workers_redistribution: float
     ) -> int:
-        """Считает количество рабочих"""
-        workers_calculation_rules = [
-            {
-                "gt": 0,
-                "le": 1_000_000,
-                "count_per_percent": 5000
-            },
-            {
-                "gt": 1_000_000,
-                "le": 10_000_000,
-                "count_per_percent": 100_000
-            },
-            {
-                "gt": 10_000_000,
-                "le": 50_000_000,
-                "count_per_percent": 275_000
-            },
-            {
-                "gt": 50_000_000,
-                "le": 125_000_000,
-                "count_per_percent": 500_000
-            },
-            {
-                "gt": 125_000_000,
-                "le": 200_000_000,
-                "count_per_percent": 1_000_000
-            },
-            {
-                "gt": 200_000_000,
-                "le": 400_000_000,
-                "count_per_percent": 2_000_000
-            },
-            {
-                "gt": 400_000_000,
-                "le": 500_000_000,
-                "count_per_percent": 2_500_000
-            },
-            {
-                "gt": 500_000_000,
-                "le": float('inf'),
-                "count_per_percent": 5_000_000
-            }
+        """Считает количество рабочих (со сглаженной шкалой)"""
+
+        points = [
+            (0, 5_000),
+            (1_000_000, 5_000),
+            (10_000_000, 100_000),
+            (50_000_000, 275_000),
+            (125_000_000, 500_000),
+            (200_000_000, 1_000_000),
+            (400_000_000, 2_000_000),
+            (500_000_000, 2_500_000),
+            (float("inf"), 5_000_000),
         ]
 
-        for rule in workers_calculation_rules:
-            if rule["gt"] < population_count <= rule["le"]:
-                count_per_percent = rule["count_per_percent"] * (
-                        1 - workers_redistribution / 10)
-                return round(count_per_percent * workers_percent)
+        redistribution_factor = 1 - workers_redistribution / 100
+
+        for i in range(len(points) - 1):
+            pop1, workers1 = points[i]
+            pop2, workers2 = points[i + 1]
+
+            if pop1 <= population_count <= pop2:
+                if pop2 == float("inf"):
+                    base_workers = workers1
+                else:
+                    # линейная интерполяция
+                    t = (population_count - pop1) / (pop2 - pop1)
+                    base_workers = workers1 + (workers2 - workers1) * t
+
+                adjusted_workers = base_workers * redistribution_factor
+                return round(adjusted_workers * workers_percent)
 
         return 0
 
@@ -148,7 +129,6 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
     ) -> float:
         """Считает ожидаемые траты на СХ"""
         (
-            workers_percent,
             technology_percent,
             fertilizer_percent,
             tool_percent
@@ -176,24 +156,25 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
             livestock: float,
             others: float,
     ) -> float:
-        pure_coefficient = InbuiltFunctions.tanh(
-            (securities[1] + securities[2] + securities[3]) / 100
-        )
-        interconnection_percent = workers_count * (
-                securities[1] + securities[2] + securities[3]) / 3
+        securities_ratio = sum(securities) / 100
 
-        standard_deviation = (
-            (
-                    abs(husbandry - 40)
-                    + abs(livestock - 40)
-                    + abs(others - 20)
-            )
-        )
-        if standard_deviation > 0:
-            standard_deviation /= 3
+        pure_coefficient = InbuiltFunctions.tanh(securities_ratio)
+        interconnection = workers_count * securities_ratio / 3
 
-        return (((
-                         interconnection_percent / biome_richness) + food_diversity) / standard_deviation) * pure_coefficient * 10
+        balance_deviation = (
+                                    abs(husbandry - 40)
+                                    + abs(livestock - 40)
+                                    + abs(others - 20)
+                            ) / 3
+
+        biome_factor = InbuiltFunctions.safe_div(
+            interconnection, biome_richness)
+        productivity = biome_factor + food_diversity
+
+        normalized_productivity = InbuiltFunctions.safe_div(
+            productivity, balance_deviation)
+
+        return normalized_productivity * pure_coefficient * 10
 
     @staticmethod
     def calculate_agriculture_efficiency(
@@ -202,7 +183,7 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
             expected_wastes: float
     ) -> float:
         """Считает эффективность СХ"""
-        if expected_wastes <= 0:
+        if expected_wastes <= 0 or not securities:
             return 0
 
         coefficient = wastes / expected_wastes
@@ -238,10 +219,10 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
             overprotective_effects: float,
             agriculture_deceases: float,
             agriculture_natural_deceases: float,
+            environmental_food: int
     ) -> float:
         """Считает обеспеченность едой"""
         (
-            workers_percent,
             technology_percent,
             fertilizer_percent,
             tool_percent
@@ -261,7 +242,7 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
         food_income *= (1 - (agriculture_deceases / 100))
         food_income *= (1 - (agriculture_natural_deceases / 100))
 
-        return food_income
+        return food_income + environmental_food
 
     @staticmethod
     def calculate_food_consumption(
@@ -411,10 +392,13 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
             expected_wastes: float
     ) -> float:
         """Считает ПСС"""
+        if not gov_wastes:
+            return 0.0
         average_gov_wastes = sum(gov_wastes) / len(gov_wastes)
         adjusted_wastes = max(0.0, average_gov_wastes * 0.3 - expected_wastes)
 
-        return adjusted_wastes * (max_potential / civil_usage)
+        safe_civil_usage = max(float(civil_usage), 1e-9)
+        return adjusted_wastes * (max_potential / safe_civil_usage)
 
     @staticmethod
     def calculate_tax_income(
@@ -505,7 +489,8 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
                           trade_usage / 38 if trade_usage <= trade_potential else trade_usage / 58) + quality_factor * efficiency_factor - trade_wastes
 
         if trade_usage > trade_potential:
-            base_income *= (valgery / 100) + (1 / forex) * (
+            safe_forex = forex if forex != 0 else 1.0
+            base_income *= (valgery / 100) + (1 / safe_forex) * (
                     1 - (valgery / 100))
 
         return base_income
@@ -597,6 +582,9 @@ class BasicInMoveFunctions(BaseInMoveFunctions):
     ) -> float:
         """Предсказывает образованность"""
         # TODO: Пересмотреть взгляд на формулу
+        if population_count <= 0:
+            return 0.0
+
         expected_wastes = population_count / 28000
         constant = (knowledge_wastes / population_count) * 1e4
         minimal_knowledge = round((knowledge_wastes / population_count) * (

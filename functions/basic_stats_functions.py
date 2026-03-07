@@ -67,7 +67,8 @@ class BasicStatsFunctions:
         """Считает базовые параметры промышленности"""
         mean_value = (industry_coefficient + civil_usage + (
                 standardization / 1.35)) / 2.5
-        std_dev = 100 / civil_usage + 0.2
+        safe_civil_usage = max(float(civil_usage), 1e-9)
+        std_dev = 100 / safe_civil_usage + 0.2
 
         possible_values = [random.gauss(mean_value, std_dev) for _ in
                            range(1000)]
@@ -77,7 +78,10 @@ class BasicStatsFunctions:
             possible_values]
 
         total_density = sum(probabilities)
-        normalized_probabilities = [p / total_density for p in probabilities]
+        if total_density == 0:
+            normalized_probabilities = [1 / len(probabilities)] * len(probabilities) if probabilities else []
+        else:
+            normalized_probabilities = [p / total_density for p in probabilities]
 
         payoff, dispersion = InbuiltFunctions.count_proba_params(
             possible_values, normalized_probabilities)
@@ -110,8 +114,9 @@ class BasicStatsFunctions:
             erudition_will: float
     ) -> float:
         """Расчет шанса на успех"""
+        safe_erudition_will = max(float(erudition_will), 1e-9)
         return random.gauss(knowledge_level + education_level,
-                            (erudition_will / 10) ** -1) // 2
+                            (safe_erudition_will / 10) ** -1) // 2
 
     @staticmethod
     def calculate_society_decline(
@@ -159,6 +164,8 @@ class BasicStatsFunctions:
     def calculate_approximate_agriculture_efficiency(
             securities: List[float]) -> float:
         """Считает примерную эффективность СХ, идея в том, чтобы внутри класса считать только из параметров класса"""
+        if not securities:
+            return 0.0
         return sum(securities) / len(securities)
 
     @classmethod

@@ -1,12 +1,15 @@
-from typing import List, Dict, Union
+from typing import List, Dict
 
 import pydantic
 from typing_extensions import override
 
-from functions.basic_stats_functions import BasicStatsFunctions
-from functions.isf_stats_functions import IsfStatsFunctions
 from stats.basic_stats import IndustrialStats
 from stats.stats_base import StatsBase
+from stats.pretty_layouts import get_layout_for_class
+from stats.derived_fields import (
+    populate_basic_economy,
+    populate_isf_inner_politics,
+)
 
 
 class IsfEconomyStats(StatsBase):
@@ -35,11 +38,14 @@ class IsfEconomyStats(StatsBase):
     allegorization: float
     branches_count: int
     branches_efficiency: float
-    tax_income: float = None
-    forex: float = None
-    trade_income: float = None
-    money_income: float = None
-    prev_budget: float = None
+    tax_income: float | None = None
+    forex: float | None = None
+    trade_income: float | None = None
+    money_income: float | None = None
+    prev_budget: float | None = None
+    income: float | None = None
+    trade_potential: float | None = None
+    branches_income: float | None = None
 
     @pydantic.model_validator(mode='after')
     def check_trade_sum(self) -> 'IsfEconomyStats':
@@ -56,103 +62,21 @@ class IsfEconomyStats(StatsBase):
 
         return self
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        self._income = None
-        self._trade_potential = None
-        self._branches_income = None
+    def recalculate_derived_fields(self) -> None:
+        populate_basic_economy(self)
 
-    @property
-    def income(self):
-        if self._income is not None:
-            return self._income
-        return round(BasicStatsFunctions.calculate_population_growth(
-            self.population_count))
-
-    @income.setter
-    def income(self, value):
-        self._income = value
-
-    @property
-    def trade_potential(self):
-        if self._trade_potential is not None:
-            return self._trade_potential
-        return BasicStatsFunctions.calculate_trade_potential(
-            self.trade_rank,
-            self.trade_efficiency
-        )
-
-    @trade_potential.setter
-    def trade_potential(self, value):
-        self._trade_potential = value
-
-    @property
-    def branches_income(self):
-        if self._branches_income is not None:
-            return self._branches_income
-
-        return BasicStatsFunctions.calculate_branches_income(
-            self.branches_count,
-            self.branches_efficiency
-        )
-
-    @branches_income.setter
-    def branches_income(self, value):
-        self._branches_income = value
+    def trade_usage_load(self) -> int:
+        if not self.trade_potential:
+            return 0
+        return round(self.trade_usage / self.trade_potential * 100)
 
     @override
-    def debug(self) -> str:
-        result_string = f"""```Население-{int(self.population_count)}                  УНЧС - {self.decrement_coefficient}                        Прирост-хз               
-Казна- хз               Экономическая стабильность - {self.stability}%                Инфляция - {self.inflation}%
-ДОХОДЫ - + "Хз" ед.вал в ход
-УН - {self.universal_tax}                    Акцизы - {self.excise}                        Дополнительные средства - +{self.additions} ед.вал
-Налог на малый бизнес - {self.small_business_tax}                         Налоги с аристократии - {self.large_enterprise_tax}
-Содержание инфраструктуры - {self.gov_wastes[0]}                                  логистики - {self.gov_wastes[1]}                       
-гос.аппарата - {self.gov_wastes[2]}                                                 ресурсодобычи - {self.gov_wastes[3]} 
-Траты на образование - {self.med_wastes[0]}               здравоохранение - {self.med_wastes[1]}               охранные учреждения - {self.med_wastes[2]} 
-соц.сферу - {self.med_wastes[3]}                                                                     науку - {self.med_wastes[4]}
-Внешние расходы - {self.other_wastes[0]}                                               Оккупация - {self.other_wastes[1]}    
-Траты на армию - {self.war_wastes[0]}              военное производство - {self.war_wastes[1]}                  флот - {self.war_wastes[2]} ```
-
-```ТОРГОВЛЯ
-Торговый ранг - {self.trade_rank}                                        Торговый потенциал - {round(self.trade_potential)} т.п.
-Эффективность торговли - {self.trade_efficiency}%                               Загруженность торговых путей - {round(self.trade_usage / self.trade_potential * 100)}%
-Транспортные издержки - {self.trade_wastes} ед.вал.                         Доступные торговые пути - {5 + 3 * (self.trade_rank - 1)}
-Процент продаж ресурсов:
-Высокого качества - {self.high_quality_percent}%                  Среднего качества - {self.mid_quality_percent}%              Низкого качества - {self.low_quality_percent}%
-Число используемых торговых путей - {self.trade_usage}       Вальжерия - {self.valgery}%         Курс валюты - хз                    
-Аллегоризация - {self.allegorization}%                                                   Торговая прибыль - хз
-Количество филиалов - {self.branches_count}                  Эффективность - {self.branches_efficiency}%              Доход - {self.branches_income}
-```
-"""
-        return result_string
+    def debug(self):
+        return self.render_pretty(debug=True)
 
     @override
-    def __str__(self) -> str:
-        result_string = f"""```Население-{int(self.population_count)}                  УНЧС - {self.decrement_coefficient}                        Прирост-{round(self.income)}               
-Казна- {"-" if round(self.current_budget - self.prev_budget) < 0 else "+"}{round(self.current_budget - self.prev_budget, 3)} ({round(self.current_budget, 3)})               Экономическая стабильность - {self.stability}%                Инфляция - {self.inflation}%
-ДОХОДЫ - + {round(self.tax_income, 3)} ед.вал в ход
-УН - {self.universal_tax}                    Акцизы - {self.excise}                        Дополнительные средства - +{self.additions} ед.вал
-Налог на малый бизнес - {self.small_business_tax}                         Налоги с аристократии - {self.large_enterprise_tax}
-Содержание инфраструктуры - {self.gov_wastes[0]}                                  логистики - {self.gov_wastes[1]}                       
-гос.аппарата - {self.gov_wastes[2]}                                                 ресурсодобычи - {self.gov_wastes[3]} 
-Траты на образование - {self.med_wastes[0]}               здравоохранение - {self.med_wastes[1]}               охранные учреждения - {self.med_wastes[2]} 
-соц.сферу - {self.med_wastes[3]}                                                                     науку - {self.med_wastes[4]}
-Внешние расходы - {self.other_wastes[0]}                                               Оккупация - {self.other_wastes[1]}    
-Траты на армию - {self.war_wastes[0]}              военное производство - {self.war_wastes[1]}                  флот - {self.war_wastes[2]} ```
-
-```ТОРГОВЛЯ
-Торговый ранг - {self.trade_rank}                                        Торговый потенциал - {round(self.trade_potential)} т.п.
-Эффективность торговли - {self.trade_efficiency}%                               Загруженность торговых путей - {round(self.trade_usage / self.trade_potential * 100)}%
-Транспортные издержки - {self.trade_wastes} ед.вал.                         Доступные торговые пути - {5 + 3 * (self.trade_rank - 1)}
-Процент продаж ресурсов:
-Высокого качества - {self.high_quality_percent}%                  Среднего качества - {self.mid_quality_percent}%              Низкого качества - {self.low_quality_percent}%
-Число используемых торговых путей - {self.trade_usage}       Вальжерия - {self.valgery}%         Курс валюты - {round(self.forex, 2)}                    
-Аллегоризация - {self.allegorization}%                                                   Торговая прибыль - {round(self.trade_income, 3)}
-Количество филиалов - {self.branches_count}                  Эффективность - {self.branches_efficiency}%              Доход - {self.branches_income}
-```
-"""
-        return result_string
+    def __str__(self):
+        return self.render_pretty(debug=False)
 
     @staticmethod
     @override
@@ -168,9 +92,8 @@ class IsfEconomyStats(StatsBase):
 
     @staticmethod
     @override
-    def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
-        from stats.schemas.economy_schema import build_regex_patterns
-        return build_regex_patterns("isf")
+    def _get_pretty_layout():
+        return get_layout_for_class("IsfEconomyStats")
 
 
 class IsfIndustrialStats(IndustrialStats):
@@ -184,10 +107,11 @@ class IsfAgricultureStats(StatsBase):
     biome_richness: float
     overprotective_effects: int
     securities: list
-    workers_redistribution: int
+    workers_percent: float
+    workers_redistribution: float
     storages_upkeep: float
     consumption_factor: float
-    agriculture_wastes: float
+    environmental_food: int
     empire_land_unmastery: float
     agriculture_deceases: float
     agriculture_natural_deceases: float
@@ -202,45 +126,15 @@ class IsfAgricultureStats(StatsBase):
     agriculture_development: float = None
     food_supplies: float = None
 
-    def __init__(self, **data):
-        super().__init__(**data)
-
-        # Negative impact on _food_security
-        self.is_negative_food_security = False
+    _is_negative_food_security: bool = False
 
     @override
-    def debug(self) -> str:
-        result_string = f"""```СЕЛЬСКОЕ ХОЗЯЙСТВО
-Распределение отраслей - 
-Земледелие - {self.husbandry}%                        Животноводство - {self.livestock}%                    Рыболовство - {self.others}%
-Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
-Обеспеченности:
-Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами - {self.securities[2]}%                Орудия труда - {self.securities[3]}%
-Рабочее перераспределение - {self.workers_redistribution}%                  Содержание хранилищ (1 к 39) - {round(self.storages_upkeep, 3)} ед.вал.              Коэффициент потребления - {self.consumption_factor}%
-Ожидаемые траты - хз ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - хз
-Неосвоенность земель Империи - {self.empire_land_unmastery}      
-Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
-Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                        Пищевое разнообразие - {self.food_diversity}%            Изъять из потребления - {self.overstock_percent}%
-Эффективность сельского хозяйства - хз%                    Развитость сельского хозяйства - хз%                     Запасы пищи - хз```
-"""
-        return result_string
+    def debug(self):
+        return self.render_pretty(debug=True)
 
     @override
-    def __str__(self) -> str:
-        result_string = f"""```СЕЛЬСКОЕ ХОЗЯЙСТВО
-Распределение отраслей - 
-Земледелие - {self.husbandry}%                        Животноводство - {self.livestock}%                    Рыболовство - {self.others}%
-Богатство биомов - {self.biome_richness}%                                    Эффекты от сверхплодородных земель - {self.overprotective_effects}   
-Обеспеченности:
-Рабочими - {self.securities[0]}%      Технологиями возделывания - {self.securities[1]}%      Удобрениями, средствами - {self.securities[2]}%                Орудия труда - {self.securities[3]}%
-Рабочее перераспределение - {self.workers_redistribution}%                  Содержание хранилищ (1 к 39) - {round(self.storages_upkeep, 3)} ед.вал.              Коэффициент потребления - {self.consumption_factor}%
-Ожидаемые траты - {round(self.expected_wastes, 3)} ед.вал.         Траты - {self.agriculture_wastes} ед.вал.                 Обеспеченность едой - {"!" if self.is_negative_food_security else ""}{round(self.food_security, 3)}%
-Неосвоенность земель Империи - {self.empire_land_unmastery}
-Хвори сельхоза - {self.agriculture_deceases}%                   Ненастья и естественные проблемы сельхоза - {self.agriculture_natural_deceases}%                                              
-Доход от редкой и дорогой еды - {self.income_from_resources} ед.вал                        Пищевое разнообразие - {self.food_diversity}%            Изъять из потребления - {self.overstock_percent}%
-Эффективность сельского хозяйства - {round(self.agriculture_efficiency)}%                    Развитость сельского хозяйства - {round(self.agriculture_development, 2)}%                     Запасы пищи - {round(self.food_supplies, 2)}```
-"""
-        return result_string
+    def __str__(self):
+        return self.render_pretty(debug=False)
 
     @staticmethod
     @override
@@ -256,9 +150,8 @@ class IsfAgricultureStats(StatsBase):
 
     @staticmethod
     @override
-    def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
-        from stats.schemas.agriculture_schema import build_regex_patterns
-        return build_regex_patterns("isf")
+    def _get_pretty_layout():
+        return get_layout_for_class("IsfAgricultureStats")
 
 
 class IsfInnerPoliticsStats(StatsBase):
@@ -305,96 +198,19 @@ class IsfInnerPoliticsStats(StatsBase):
 
         return self
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        self._success_chance = None
-        self._society_decline = None
+    success_chance: float | None = None
+    society_decline: float | None = None
 
-    @property
-    def success_chance(self):
-        if self._success_chance is not None:
-            return self._success_chance
-        return round(BasicStatsFunctions.calculate_success_chance(
-            self.knowledge_level, self.education_level, self.erudition_will))
-
-    @success_chance.setter
-    def success_chance(self, value):
-        self._success_chance = value
-
-    @property
-    def society_decline(self):
-        if self._society_decline is not None:
-            return self._society_decline
-        return IsfStatsFunctions.calculate_society_decline(
-            self.contentment,
-            self.government_trust,
-            self.many_children_traditions,
-            self.sexual_asceticism,
-            self.egocentrism_development,
-            self.education_level,
-            self.erudition_will,
-            self.cultural_level,
-            self.violence_tendency,
-            self.unemployment_rate,
-            self.grace_of_the_silver,
-            self.commitment_to_cause,
-            self.departure_from_truths,
-            self.imperial_court_power,
-            self.separatism_of_the_highest,
-            self.allegory_influence
-        )
-
-    @society_decline.setter
-    def society_decline(self, value):
-        self._society_decline = value
+    def recalculate_derived_fields(self) -> None:
+        populate_isf_inner_politics(self)
 
     @override
-    def debug(self) -> str:
-        result_string = f"""```ГОСУДАРСТВО
-Бюрократический аппарат          Размер - {self.state_apparatus_size}%                     Эффективность - {self.state_apparatus_efficiency}%
-Уровень образованности - {self.knowledge_level}            Шанс на успех - {self.success_chance}%       Пропаганда многодетности - {self.many_children_propoganda}   
-Целостность веры - {self.integrity_of_faith}               Коррупция - {self.corruption_level}             Солевой достаток - {self.salt_security}% 
-Процент бедности - {self.poor_level}                              Процент безработицы - {self.jobless_level}  
-Малый бизнес - {self.small_enterprise_percent}              Аристократические и коммерческие дома - {self.large_enterprise_count}
-Число провинций - {self.provinces_count}                   Траты на одну - {self.provinces_waste} ед.вал                       ЗВО - {self.military_equipment}
-Влияние Аллегории - {self.allegory_influence}%
-КОНТРОЛЬ
-Императорский двор - {self.control[0]}%         Представительство - {self.control[1]}%               Аристократия - {self.control[2]}%             Автономии - {self.control[3]}%```
-
-```НАРОД
-Довольство населения - {self.contentment}                                      Доверие властям - {self.government_trust}  
-Традиции многодетности - {self.many_children_traditions}         Сексуальный аскетизм - {self.sexual_asceticism}            Эгоцентризм развития - {self.egocentrism_development}
-Образованность - {self.education_level}                                             Стремление к эрудиции - {self.erudition_will}    
-Уровень культуры - {self.cultural_level}          Склонность к насилию - {self.violence_tendency}           Паника - {self.panic_level}%  
-Упадок общества - {self.society_decline}%                                                Процент тунеядства - {self.unemployment_rate}
-Сила Имперского Двора - {self.imperial_court_power}%                                                Милость Серебрянной - {self.grace_of_the_silver}  
-Собственная Убеждённость Делу - {self.commitment_to_cause}          Отхождение от истин - {self.departure_from_truths}              Сепаратизм Высших - {self.separatism_of_the_highest}   ```
-"""
-        return result_string
+    def debug(self):
+        return self.render_pretty(debug=True)
 
     @override
-    def __str__(self) -> str:
-        result_string = f"""```ГОСУДАРСТВО
-Бюрократический аппарат          Размер - {self.state_apparatus_size}%                     Эффективность - {self.state_apparatus_efficiency}%
-Уровень образования - {self.knowledge_level}            Шанс на успех - {self.success_chance}%       Пропаганда многодетности - {self.many_children_propoganda}   
-Целостность веры - {self.integrity_of_faith}               Коррупция - {self.corruption_level}             Солевой достаток - {self.salt_security}% 
-Процент бедности - {self.poor_level}                                                   Процент безработицы - {self.jobless_level}
-Малый бизнес - {self.small_enterprise_percent}                               Аристократические и коммерческие дома - {self.large_enterprise_count}
-Число провинций - {self.provinces_count}                   Траты на одну - {self.provinces_waste} ед.вал                       ЗВО - {self.military_equipment}
-Влияние Аллегории - {self.allegory_influence}%
-КОНТРОЛЬ
-Императорский двор - {self.control[0]}%         Представительство - {self.control[1]}%               Аристократия - {self.control[2]}%             Автономии - {self.control[3]}%```
-
-```НАРОД
-Довольство населения - {self.contentment}                                      Доверие властям - {self.government_trust}  
-Традиции многодетности - {self.many_children_traditions}         Сексуальный аскетизм - {self.sexual_asceticism}            Эгоцентризм развития - {self.egocentrism_development}
-Образованность - {self.education_level}                                             Стремление к эрудиции - {self.erudition_will}    
-Уровень культуры - {self.cultural_level}          Склонность к насилию - {self.violence_tendency}           Паника - {self.panic_level}%  
-Упадок общества - {self.society_decline}%                                                Процент тунеядства - {self.unemployment_rate}
-Сила Имперского Двора - {self.imperial_court_power}%                                                Милость Серебрянной - {self.grace_of_the_silver}  
-Собственная Убеждённость Делу - {self.commitment_to_cause}            Отхождение от истин - {self.departure_from_truths}            Сепаратизм Высших - {self.separatism_of_the_highest}```
-"""
-        return result_string
+    def __str__(self):
+        return self.render_pretty(debug=False)
 
     @staticmethod
     @override
@@ -410,6 +226,5 @@ class IsfInnerPoliticsStats(StatsBase):
 
     @staticmethod
     @override
-    def _get_regex_patterns() -> Dict[str, Union[str, List[str]]]:
-        from stats.schemas.inner_politics_schema import build_regex_patterns
-        return build_regex_patterns("isf")
+    def _get_pretty_layout():
+        return get_layout_for_class("IsfInnerPoliticsStats")

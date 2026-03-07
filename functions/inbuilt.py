@@ -40,5 +40,11 @@ class InbuiltFunctions:
 
     @staticmethod
     def gaussian_kernel(x: float) -> float:
+        if x == 0:
+            return 0.0
         inverted_root = 1 / math.sqrt(2 * math.pi)
         return inverted_root * math.exp(-((x - 1) ** 2) / (2 * x ** 2))
+
+    @staticmethod
+    def safe_div(numerator: float, denominator: float) -> float:
+        return numerator / denominator if denominator != 0 else 0.0

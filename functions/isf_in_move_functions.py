@@ -19,24 +19,6 @@ class IsfInMoveFunctions(BasicInMoveFunctions):
         base_cost = C * (biome_factor + development_factor) * K
         return max(base_cost / 100, 1)
 
-    @classmethod
-    def calculate_agriculture_wastes(
-            cls,
-            population_count: int,
-            securities: List[float],
-            biome_richness: float,
-            agriculture_development: float
-    ) -> float:
-        """Считает ожидаемые траты на СХ"""
-        base_cost = cls.calculate_agriculture_base_wastes(
-            biome_richness,
-            agriculture_development
-        )
-        influence_factor = sum(
-            securities) / 100  # Преобразуем проценты в коэффициент
-        expenses = (population_count / 1000000) * influence_factor * base_cost
-        return expenses
-
     @staticmethod
     def calculate_contentment_spotter_allegory(
             contentment: int,

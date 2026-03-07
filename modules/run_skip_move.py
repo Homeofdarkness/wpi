@@ -26,10 +26,18 @@ from stats.atterium_stats import (
     AtteriumIndustrialStats,
     AtteriumInnerPoliticsStats,
 )
-from stats.basic_stats import AgricultureStats, EconomyStats, IndustrialStats, \
+from stats.basic_stats import (
+    AgricultureStats,
+    EconomyStats,
+    IndustrialStats,
     InnerPoliticsStats
-from stats.isf_stats import IsfAgricultureStats, IsfEconomyStats, \
-    IsfIndustrialStats, IsfInnerPoliticsStats
+)
+from stats.isf_stats import (
+    IsfAgricultureStats,
+    IsfEconomyStats,
+    IsfIndustrialStats,
+    IsfInnerPoliticsStats
+)
 from utils.logger_manager import get_logger
 from utils.user_io import ConsoleIO, UserIO
 
@@ -53,7 +61,7 @@ class SkipMoverBase(ABC):
     InnerPolitics: Any
     waste: float = 0.0
 
-    InMoveFunctions: BaseInMoveFunctions = field(
+    InMoveFunctions: BasicInMoveFunctions = field(
         default_factory=BaseInMoveFunctions)
     Rules: SkipMoveRules = field(default_factory=BasicSkipMoveRules)
 
@@ -81,10 +89,14 @@ class SkipMoverBase(ABC):
         raise NotImplementedError
 
     def _calculate_logistic_wastes(self) -> float:
-        """Logistic expenses: dedicated logistic spend + province management."""
+        """
+        Logistic expenses:
+        dedicated logistic spend + province management.
+        """
         return float(
             self.Economy.gov_wastes[1]
-            + self.InnerPolitics.provinces_count * self.InnerPolitics.provinces_waste
+            + self.InnerPolitics.provinces_count
+            * self.InnerPolitics.provinces_waste
         )
 
     def _calculate_total_wastes(self, logistic_wastes: float) -> float:
@@ -96,7 +108,7 @@ class SkipMoverBase(ABC):
             + sum(self.Economy.other_wastes)
             + logistic_wastes
             + self.waste
-            + self.Agriculture.agriculture_wastes
+            + self.Agriculture.expected_wastes
             - self.Agriculture.income_from_resources
         )
 
@@ -122,10 +134,15 @@ class SkipMoverBase(ABC):
         self.Economy.current_budget = float(desired_final)
         return True, credit_amount, float(self.Economy.current_budget)
 
-    def _update_stability(self, rules: SkipMoveRules,
-                          contentment_coefficient_2: float) -> Tuple[
-        float, float]:
-        """Update economic stability and return (buffed_stability, income_boost_coef)."""
+    def _update_stability(
+            self,
+            rules: SkipMoveRules,
+            contentment_coefficient_2: float
+    ) -> Tuple[float, float]:
+        """
+        Update economic stability and return
+        (buffed_stability, income_boost_coef).
+        """
         ctx = self._ctx()
         apparatus_budget_spent = rules.get_state_apparatus_budget_spent(ctx)
         expected_size = self.InMoveFunctions.expected_state_apparatus(
@@ -141,12 +158,17 @@ class SkipMoverBase(ABC):
         if expected_size > self.InnerPolitics.state_apparatus_size:
             buffed_stability -= 10
             logger.debug(
-                f"Размер аппарата недостаточен, стабильность снижена до {buffed_stability}%"
+                f"Размер аппарата недостаточен, "
+                f"стабильность снижена до {buffed_stability}%"
             )
-        elif self.InnerPolitics.state_apparatus_efficiency > 60 and buffed_stability < 100:
+        elif (
+                self.InnerPolitics.state_apparatus_efficiency > 60
+                and buffed_stability < 100
+        ):
             buffed_stability = min(buffed_stability + 5, 99)
             logger.debug(
-                f"Эффективный аппарат, стабильность повышена до {buffed_stability}%"
+                f"Эффективный аппарат, "
+                f"стабильность повышена до {buffed_stability}%"
             )
 
         if (
@@ -194,11 +216,14 @@ class SkipMoverBase(ABC):
             self.InnerPolitics.education_level += increase
             logger.debug(f"Образованность повышена на {increase}")
 
+        self.InnerPolitics.recalculate_derived_fields()
+
     def _update_military_equipment(self) -> None:
         """Update military equipment score."""
-        equipment_increase = self.Economy.war_wastes[
-                                 1] * self.InMoveFunctions.calculate_military_equipment_coefficient(
-            self.Industry.war_production_efficiency
+        equipment_increase = (
+                self.Economy.war_wastes[1]
+                * self.InMoveFunctions.calculate_military_equipment_coefficient(
+            self.Industry.war_production_efficiency)
         )
         self.InnerPolitics.military_equipment += equipment_increase
 
@@ -257,7 +282,7 @@ class BasicSkipMove(SkipMoverBase):
         logistic_params: LogisticParams = self.Rules.calculate_logistic_params(
             ctx, logistic_wastes)
 
-        culture_coefficient = self.InMoveFunctions.calculate_cultural_coefficient(
+        cultural_coefficient = self.InMoveFunctions.calculate_cultural_coefficient(
             self.InnerPolitics.cultural_level,
             self.InnerPolitics.egocentrism_development,
         )
@@ -272,13 +297,13 @@ class BasicSkipMove(SkipMoverBase):
 
         workers_count = self.InMoveFunctions.calculate_workers_count(
             self.Economy.population_count,
-            self.Agriculture.securities[0],
+            self.Agriculture.workers_percent,
             self.Agriculture.workers_redistribution
         )
 
         return CalculationResults(
             logistic_params=logistic_params,
-            culture_coefficient=culture_coefficient,
+            culture_coefficient=cultural_coefficient,
             contentment_coefficient_1=contentment_coefficient_1,
             contentment_coefficient_2=contentment_coefficient_2,
             expected_infrastructure_waste=expected_infrastructure_waste,
@@ -329,7 +354,7 @@ class BasicSkipMove(SkipMoverBase):
         self.Agriculture.agriculture_efficiency = \
             self.InMoveFunctions.calculate_agriculture_efficiency(
                 self.Agriculture.securities,
-                self.Agriculture.agriculture_wastes,
+                self.Agriculture.expected_wastes,
                 self.Agriculture.expected_wastes,
             )
         food_income = round(
@@ -338,7 +363,8 @@ class BasicSkipMove(SkipMoverBase):
                 self.Agriculture.securities,
                 self.Agriculture.overprotective_effects,
                 self.Agriculture.agriculture_deceases,
-                self.Agriculture.agriculture_natural_deceases
+                self.Agriculture.agriculture_natural_deceases,
+                self.Agriculture.environmental_food
             )
         )
         food_consumption = round(
@@ -382,7 +408,7 @@ class BasicSkipMove(SkipMoverBase):
             f"{self.Agriculture.food_security}"
         )
         if self.Agriculture.food_security < 0:
-            self.Agriculture.is_negative_food_security = True
+            self.Agriculture._is_negative_food_security = True
             self.Agriculture.food_security = 0
             logger.debug("Прибили обеспеченность едой к 0")
 
@@ -474,8 +500,7 @@ class BasicSkipMove(SkipMoverBase):
             self.Economy.current_budget,
             self.Economy.trade_rank,
             self.Economy.trade_efficiency,
-            round(
-                self.Economy.trade_usage / self.Economy.trade_potential * 100),
+            self.Economy.trade_usage_load(),
             self.Industry.civil_efficiency,
             self.InnerPolitics.state_apparatus_efficiency,
             self.InnerPolitics.contentment,
@@ -522,10 +547,15 @@ class BasicSkipMove(SkipMoverBase):
             self.Economy.allegorization
         )
         logger.debug(
-            f"Коэффициент аллегоризации для торговли - {allegorization_trade_factor}")
+            f"Коэффициент аллегоризации для торговли - "
+            f"{allegorization_trade_factor}"
+        )
         logger.debug(
-            f"Коэффициент аллегоризации для остального - {allegorization_economy_factor}")
+            f"Коэффициент аллегоризации для остального - "
+            f"{allegorization_economy_factor}"
+        )
 
+        # TODO: Перенести в правило
         agriculture_summarizing_factor = \
             self.InMoveFunctions.calculate_agriculture_factor(
                 self.Economy.tax_income,

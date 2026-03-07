@@ -1,21 +1,29 @@
-import re
 from abc import ABC, abstractmethod
 from typing import Optional, List, Any, Dict
 
 import pydantic
 
+from stats.pretty import parse_pretty_text, render_pretty, PrettyLayoutSpec
 from utils.input_parsers import InputParser
 
 
 class StatsBase(pydantic.BaseModel, ABC):
 
-    @abstractmethod
-    def debug(self):
-        raise NotImplementedError()
+    def model_post_init(self, __context) -> None:
+        self.recalculate_derived_fields()
 
-    @abstractmethod
+    def recalculate_derived_fields(self) -> None:
+        """Пересчитывает производные поля модели после инициализации."""
+        return None
+
+    def render_pretty(self, *, debug: bool = False) -> str:
+        return render_pretty(self, self._get_pretty_layout(), debug=debug)
+
+    def debug(self):
+        return self.render_pretty(debug=True)
+
     def __str__(self):
-        raise NotImplementedError()
+        return self.render_pretty(debug=False)
 
     @staticmethod
     @abstractmethod
@@ -29,7 +37,7 @@ class StatsBase(pydantic.BaseModel, ABC):
 
     @staticmethod
     @abstractmethod
-    def _get_regex_patterns():
+    def _get_pretty_layout() -> PrettyLayoutSpec:
         raise NotImplementedError()
 
     @staticmethod
@@ -55,7 +63,6 @@ class StatsBase(pydantic.BaseModel, ABC):
                     field_info = fields[field_name]
                     prompt = field_names.get(field_name, field_name)
 
-                    # Определяем тип поля
                     if field_info.annotation == int:
                         data[field_name] = InputParser.input_int(prompt,
                                                                  field_info)
@@ -72,76 +79,14 @@ class StatsBase(pydantic.BaseModel, ABC):
     @classmethod
     def from_stats_text(cls, data: str,
                         defaults: Dict[str, Any] = None) -> 'StatsBase':
-        if defaults is None:
-            defaults = cls._get_default_values()
+        merged_defaults = cls._get_default_values().copy()
+        if defaults:
+            merged_defaults.update(defaults)
 
-        result = defaults.copy()
-        patterns = cls._get_regex_patterns()
-
-        for field_name, pattern in patterns.items():
-            if field_name not in cls.model_fields:
-                continue
-
-            field_info = cls.model_fields[field_name]
-            field_type = field_info.annotation
-
-            if isinstance(pattern, list):
-                result[field_name] = cls._parse_array_field(data, pattern)
-            elif isinstance(pattern, str):
-                result[field_name] = cls._parse_single_field(data, pattern,
-                                                             field_type)
-            elif isinstance(pattern, dict):
-                result[field_name] = cls._parse_complex_field(data, pattern,
-                                                              field_type)
-
-        return cls(**result)
-
-    @classmethod
-    def _parse_single_field(cls, text: str, pattern: str,
-                            field_type: type) -> Any:
-        match = re.search(pattern, text)
-        if not match:
-            return None
-
-        value = match.group(1)
-
-        # Приведение к нужному типу
-        if field_type == int:
-            return int(float(value))  # Сначала float для обработки "123.0"
-        elif field_type == float:
-            return float(value)
-        elif field_type == str:
-            return value
-
-    @classmethod
-    def _parse_array_field(cls, text: str, patterns: List[str]) -> List[float]:
-        """Парсинг массива значений"""
-        result = []
-
-        for pattern in patterns:
-            match = re.search(pattern, text)
-            if match:
-                result.append(float(match.group(1)))
-            else:
-                result.append(0.0)
-
-        return result
-
-    @classmethod
-    def _parse_complex_field(cls, text: str, pattern_config: Dict,
-                             field_type: type) -> Any:
-        """Парсинг сложных полей с особой логикой"""
-        if pattern_config.get('type') == 'budget_calculation':
-            # Специальная обработка для расчета бюджета
-            budget_match = re.search(pattern_config['pattern'], text)
-            if budget_match:
-                if pattern_config['field'] == 'current_budget':
-                    return float(budget_match.group(2))
-                elif pattern_config['field'] == 'prev_budget':
-                    current = float(budget_match.group(2))
-                    change = float(budget_match.group(1))
-                    return current - change
-
-        # Обычный парсинг для остальных случаев
-        return cls._parse_single_field(text, pattern_config['pattern'],
-                                       field_type)
+        parsed = parse_pretty_text(
+            data,
+            cls._get_pretty_layout(),
+            cls.model_fields,
+            defaults=merged_defaults,
+        )
+        return cls(**parsed)
