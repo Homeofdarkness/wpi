@@ -341,21 +341,29 @@ class BasicSkipMove(SkipMoverBase):
                 self.Agriculture.others,
                 self.Agriculture.biome_richness
             )
+        self.Agriculture.agriculture_efficiency = \
+            self.InMoveFunctions.calculate_agriculture_efficiency(
+                self.Agriculture.securities,
+                self.Agriculture.biome_richness,
+                self.Agriculture.husbandry,
+                self.Agriculture.livestock,
+                self.Agriculture.others,
+                self.Agriculture.agriculture_deceases,
+                self.Agriculture.agriculture_natural_deceases,
+                results.workers_count,
+                self.Economy.population_count,
+            )
+
         self.Agriculture.agriculture_development = \
             self.InMoveFunctions.calculate_agriculture_development(
                 self.Agriculture.securities,
                 results.workers_count,
+                self.Economy.population_count,
                 self.Agriculture.biome_richness,
                 self.Agriculture.food_diversity,
                 self.Agriculture.husbandry,
                 self.Agriculture.livestock,
                 self.Agriculture.others,
-            )
-        self.Agriculture.agriculture_efficiency = \
-            self.InMoveFunctions.calculate_agriculture_efficiency(
-                self.Agriculture.securities,
-                self.Agriculture.expected_wastes,
-                self.Agriculture.expected_wastes,
             )
         food_income = round(
             self.InMoveFunctions.calculate_food_income(

@@ -1,5 +1,4 @@
 from __future__ import annotations
-from __future__ import annotations
 
 from stats.pretty import PrettyLayoutSpec, PrettyLineSpec, field, \
     food_security, list_item

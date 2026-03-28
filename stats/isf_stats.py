@@ -4,12 +4,12 @@ import pydantic
 from typing_extensions import override
 
 from stats.basic_stats import IndustrialStats
-from stats.stats_base import StatsBase
-from stats.pretty_layouts import get_layout_for_class
 from stats.derived_fields import (
     populate_basic_economy,
     populate_isf_inner_politics,
 )
+from stats.pretty_layouts import get_layout_for_class
+from stats.stats_base import StatsBase
 
 
 class IsfEconomyStats(StatsBase):
@@ -118,13 +118,15 @@ class IsfAgricultureStats(StatsBase):
     income_from_resources: float
     overstock_percent: float
 
+    # Semi-dynamic param
+    food_supplies: float = 0
+
     # Dynamic params (calculated in skip-move)
     expected_wastes: float = None
     food_security: float = None
     food_diversity: float = None
     agriculture_efficiency: float = None
     agriculture_development: float = None
-    food_supplies: float = None
 
     _is_negative_food_security: bool = False
 

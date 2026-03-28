@@ -1,8 +1,9 @@
-import math
-import random
 from typing import Tuple, List
 
-from functions.inbuilt import InbuiltFunctions
+from functions.agriculture_models import AgricultureDevelopmentModel
+from functions.economy_models import BranchIncomeModel, PopulationGrowthModel, TradePotentialModel
+from functions.industry_models import CivilEfficiencyLogisticModel, CivilUsageModel, IndustryBasicStatsModel, IndustryCoefficientModel
+from functions.society_models import SocietyDeclineModel, SuccessChanceModel
 
 
 class BasicStatsFunctions:
@@ -10,28 +11,12 @@ class BasicStatsFunctions:
     # Economy
     @staticmethod
     def calculate_population_growth(current_population_count: int) -> int:
-        """Расчет прироста населения (legacy)"""
-        population_in_thousands = current_population_count * 10 ** -3
-
-        if current_population_count > 8 * 10 ** 6:
-            return population_in_thousands * 8.77
-        elif current_population_count >= 5.5 * 10 ** 6:
-            return population_in_thousands * 9.87
-        elif current_population_count >= 2.5 * 10 ** 6:
-            return population_in_thousands * 11.77
-        elif current_population_count >= 10 ** 6:
-            return population_in_thousands * 9.87
-
-        return population_in_thousands * 6.87
+        return PopulationGrowthModel.calculate(current_population_count)
 
     @staticmethod
     def calculate_trade_potential(trade_rank: int,
                                   trade_efficiency: int) -> float:
-        """Расчет торгового потенциала"""
-        if trade_rank >= 7:
-            return 5 + 3 * (trade_rank - 6) * (trade_efficiency / 100)
-        else:
-            return 3 + 2 * (trade_rank - 2) * (trade_efficiency / 100)
+        return TradePotentialModel.calculate(trade_rank, trade_efficiency)
 
     # Industry
     @staticmethod
@@ -39,72 +24,33 @@ class BasicStatsFunctions:
                                        processing_usage: float,
                                        processing_efficiency: float,
                                        mean_score: float):
-        """Расчет коэффициента производительности"""
-        industry_coefficient_base = (mean_score + processing_efficiency) / 2
-        industry_coefficient_loss = InbuiltFunctions.euclidean_distance(
-            processing_production, processing_usage) / 4
-        decrement = 1 - (abs(processing_production - processing_usage) / max(
-            processing_production, processing_usage))
-
-        return min(
-            (
-                    industry_coefficient_base - industry_coefficient_loss
-            ) * decrement,
-            100
+        return IndustryCoefficientModel.calculate(
+            processing_production,
+            processing_usage,
+            processing_efficiency,
+            mean_score,
         )
 
     @staticmethod
     def calculate_civil_usage(civil_security: float, tvr1: float,
                               tvr2: float) -> int:
-        """Расчет процента производства"""
-        return round((civil_security + tvr1 + tvr2) / 3)
+        return CivilUsageModel.calculate(civil_security, tvr1, tvr2)
 
     @staticmethod
     def calculate_industry_basic_stats(industry_coefficient: float,
                                        civil_usage: float,
                                        standardization: float) -> \
             Tuple[float, float, float]:
-        """Считает базовые параметры промышленности"""
-        mean_value = (industry_coefficient + civil_usage + (
-                standardization / 1.35)) / 2.5
-        safe_civil_usage = max(float(civil_usage), 1e-9)
-        std_dev = 100 / safe_civil_usage + 0.2
-
-        possible_values = [random.gauss(mean_value, std_dev) for _ in
-                           range(1000)]
-        probabilities = [
-            InbuiltFunctions.pdf_manual(possible_value, mean_value, std_dev)
-            for possible_value in
-            possible_values]
-
-        total_density = sum(probabilities)
-        if total_density == 0:
-            normalized_probabilities = [1 / len(probabilities)] * len(probabilities) if probabilities else []
-        else:
-            normalized_probabilities = [p / total_density for p in probabilities]
-
-        payoff, dispersion = InbuiltFunctions.count_proba_params(
-            possible_values, normalized_probabilities)
-        while payoff < dispersion:
-            dispersion /= 2
-
-        efficiency = random.uniform(payoff - dispersion, payoff + dispersion)
-        max_potential = (industry_coefficient + civil_usage) / 1.8
-        expected_wastes = payoff * 0.3
-
-        difference = civil_usage - max_potential
-        adjustment = max(0.0, min((difference // 5) * 2, 7))
-        efficiency -= adjustment
-
-        return efficiency, max_potential, expected_wastes
+        return IndustryBasicStatsModel.calculate(
+            industry_coefficient,
+            civil_usage,
+            standardization,
+        )
 
     @staticmethod
     def calculate_civil_efficiency_boost_from_logistic(
             logistic: float) -> float:
-        if logistic <= 30:
-            return 1 + math.log1p(logistic) / 10
-        else:
-            return 1.3 + (logistic - 50) / 100
+        return CivilEfficiencyLogisticModel.calculate(logistic)
 
     # Inner Politics
     @staticmethod
@@ -113,10 +59,11 @@ class BasicStatsFunctions:
             education_level: float,
             erudition_will: float
     ) -> float:
-        """Расчет шанса на успех"""
-        safe_erudition_will = max(float(erudition_will), 1e-9)
-        return random.gauss(knowledge_level + education_level,
-                            (safe_erudition_will / 10) ** -1) // 2
+        return SuccessChanceModel.calculate(
+            knowledge_level,
+            education_level,
+            erudition_will,
+        )
 
     @staticmethod
     def calculate_society_decline(
@@ -134,56 +81,37 @@ class BasicStatsFunctions:
             commitment_to_cause: int,
             departure_from_truths: int
     ) -> float:
-        """Считает упадок общества"""
-        positive_factors = (
-                contentment * 0.05 +
-                government_trust * 0.15 +
-                many_children_traditions * 0.05 +
-                sexual_asceticism * 0.25 +
-                education_level * 0.05 +
-                erudition_will * 0.075 +
-                cultural_level * 0.05 +
-                grace_of_the_highest * 0.7 +
-                commitment_to_cause * 0.15
+        return SocietyDeclineModel.calculate(
+            contentment,
+            government_trust,
+            many_children_traditions,
+            sexual_asceticism,
+            egocentrism_development,
+            education_level,
+            erudition_will,
+            cultural_level,
+            violence_tendency,
+            unemployment_rate,
+            grace_of_the_highest,
+            commitment_to_cause,
+            departure_from_truths,
         )
-
-        negative_factors = (
-                violence_tendency * 0.5 +  # + 2
-                egocentrism_development * 0.3 +
-                unemployment_rate * 0.3 +
-                departure_from_truths * 1.1
-        )
-
-        societal_decline = max(0.0, negative_factors - positive_factors)
-        societal_decline = min(societal_decline, 100)
-
-        return round(societal_decline, 2)
 
     # Agriculture
     @staticmethod
     def calculate_approximate_agriculture_efficiency(
             securities: List[float]) -> float:
-        """Считает примерную эффективность СХ, идея в том, чтобы внутри класса считать только из параметров класса"""
-        if not securities:
-            return 0.0
-        return sum(securities) / len(securities)
+        return AgricultureDevelopmentModel.approximate_efficiency(securities)
 
     @classmethod
     def calculate_approximate_food_security(cls, biome_richness: float,
                                             overproduction_effects: int,
                                             securities: List[float]) -> float:
-        """Считает приблизительную обеспеченность едой"""
-        agriculture_efficiency = cls.calculate_approximate_agriculture_efficiency(
-            securities)
-
-        stock = (overproduction_effects * 6 * (
-                1 + biome_richness / 1000)) if agriculture_efficiency >= 75 else 0
-
-        # Calculate food security using a parabolic function
-        food_security = InbuiltFunctions.parabola(agriculture_efficiency / 10,
-                                                  1, 4, 10) + stock
-
-        return food_security
+        return AgricultureDevelopmentModel.approximate_food_security(
+            biome_richness,
+            overproduction_effects,
+            securities,
+        )
 
     @classmethod
     def calculate_agriculture_development(
@@ -191,16 +119,10 @@ class BasicStatsFunctions:
             approximate_food_security: float,
             securities: List[float]
     ) -> float:
-        """Считает развитость СХ"""
-        agriculture_efficiency = cls.calculate_approximate_agriculture_efficiency(
-            securities)
-        value = (approximate_food_security * agriculture_efficiency / 8) / 1000
-        sigmoid_result = InbuiltFunctions.sigmoid(value) * 100
-
-        if min(agriculture_efficiency, approximate_food_security) < 50:
-            return sigmoid_result
-        else:
-            return min(100.0, sigmoid_result * (100 / 77))
+        return AgricultureDevelopmentModel.approximate_development(
+            approximate_food_security,
+            securities,
+        )
 
     @classmethod
     def calculate_branches_income(
@@ -208,4 +130,4 @@ class BasicStatsFunctions:
             branches_count: int,
             branches_efficiency: float
     ) -> float:
-        return branches_count * (branches_efficiency / 10)
+        return BranchIncomeModel.calculate(branches_count, branches_efficiency)

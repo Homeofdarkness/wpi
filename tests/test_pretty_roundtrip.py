@@ -2,8 +2,25 @@ from __future__ import annotations
 
 import random
 
-from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, InnerPoliticsStats
-from tests.factories import make_basic_bundle, make_atterium_bundle, make_isf_bundle
+from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, \
+    InnerPoliticsStats
+from tests.factories import make_basic_bundle, make_atterium_bundle, \
+    make_isf_bundle
+
+
+def test_basic_economy_roundtrip_from_pretty():
+    random.seed(20)
+    economy = make_basic_bundle().economy
+    text = str(economy)
+    parsed = EconomyStats.from_stats_text(text)
+    print(text)
+
+    assert economy.population_count == parsed.population_count
+    assert economy.decrement_coefficient == parsed.decrement_coefficient
+    assert economy.current_budget == parsed.current_budget
+    assert economy.gov_wastes == parsed.gov_wastes
+    assert economy.other_wastes == parsed.other_wastes
+    assert economy.war_wastes == parsed.war_wastes
 
 
 def test_basic_industry_roundtrip_from_pretty():
@@ -72,6 +89,7 @@ def test_legacy_basic_economy_spacing_without_spaces_before_dash_is_still_parsed
 Филиалы - 2                                 Эффективность - 80.0%                                 Доход - 16.000
 """
     parsed = EconomyStats.from_stats_text(text)
+    print(parsed)
 
     assert parsed.population_count == 13_828_502
     assert parsed.decrement_coefficient == 0

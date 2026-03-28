@@ -129,7 +129,7 @@ BASIC_ECONOMY_LAYOUT = PrettyLayoutSpec(
         PrettyLineSpec(fields=("additions", "small_enterprise_tax",
                                "large_enterprise_tax"), min_gap=8),
 
-        PrettyLineSpec(title="ТРАТЫ", gap_before=1),
+        PrettyLineSpec(title="ГРАЖДАНСКИЕ ТРАТЫ", gap_before=1),
         PrettyLineSpec(fields=("gov0", "gov1"), line_width=150, min_gap=18),
         PrettyLineSpec(fields=("gov2", "gov3"), line_width=150, min_gap=18),
         PrettyLineSpec(fields=("med0", "med1", "med2"), line_width=170,
@@ -137,8 +137,10 @@ BASIC_ECONOMY_LAYOUT = PrettyLayoutSpec(
         PrettyLineSpec(fields=("med3", "med4"), line_width=130, min_gap=30),
         PrettyLineSpec(fields=("other0", "other1", "other2"), line_width=165,
                        min_gap=12),
-        PrettyLineSpec(fields=("war0", "war1", "war2"), line_width=165,
-                       min_gap=12),
+
+        PrettyLineSpec(title="ВОЕННЫЕ ТРАТЫ", gap_before=1),
+        PrettyLineSpec(fields=("war0", "war1", "war2", "other2"),
+                       line_width=165, min_gap=12),
 
         PrettyLineSpec(title="ТОРГОВЛЯ", gap_before=1),
         PrettyLineSpec(

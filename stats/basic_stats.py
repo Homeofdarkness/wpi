@@ -1,15 +1,15 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import pydantic
 from typing_extensions import override
 
-from stats.stats_base import StatsBase
-from stats.pretty_layouts import get_layout_for_class
 from stats.derived_fields import (
     populate_basic_economy,
     populate_basic_industry,
     populate_basic_inner_politics,
 )
+from stats.pretty_layouts import get_layout_for_class
+from stats.stats_base import StatsBase
 
 
 class EconomyStats(StatsBase):
@@ -251,11 +251,11 @@ class AgricultureStats(StatsBase):
     food_supplies: float = 0
 
     # Dynamic params (calculated in skip-move)
-    expected_wastes: float = None
-    food_security: float = None
-    food_diversity: float = None
-    agriculture_efficiency: float = None
-    agriculture_development: float = None
+    expected_wastes: Optional[float] = None
+    food_security: Optional[float] = None
+    food_diversity: Optional[float] = None
+    agriculture_efficiency: Optional[float] = None
+    agriculture_development: Optional[float] = None
 
     # Inner Stat Params
     _is_negative_food_security: bool = False

@@ -35,7 +35,7 @@ BASIC_FIELD_GROUPS = {
         'agriculture_natural_deceases',
         'workers_percent',
         'workers_redistribution',
-        'environmental_food'
+        'environmental_food',
         'consumption_factor',
         'overstock_percent',
         'food_supplies'
@@ -51,7 +51,7 @@ ATTERIUM_FIELD_GROUPS = {
         'agriculture_natural_deceases',
         'workers_percent',
         'workers_redistribution',
-        'environmental_food'
+        'environmental_food',
         'consumption_factor',
         'overstock_percent',
         'food_supplies'
