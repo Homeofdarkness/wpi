@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from stats.basic_stats import AgricultureStats, EconomyStats, IndustrialStats, InnerPoliticsStats
+from stats.basic_stats import (
+    AgricultureStats,
+    EconomyStats,
+    IndustrialStats,
+    InnerPoliticsStats
+)
 
 
 @dataclass(frozen=True)
