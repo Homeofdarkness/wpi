@@ -153,7 +153,8 @@ class TradeModels:
     def calculate_allegorization_economy_factor(allegorization_percent: float) -> float:
         if not 0 <= allegorization_percent <= 100:
             raise ValueError(
-                f"Процент должен быть в диапазоне [0, 100], получен: {allegorization_percent}"
+                f"Процент должен быть в диапазоне [0, 100], "
+                f"получен: {allegorization_percent}"
             )
         rules = [
             (lambda x: x == 0, lambda x: 1.03),
