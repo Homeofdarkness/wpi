@@ -1,0 +1,44 @@
+# Ruff configuration generated from the project's PyCharm inspection profile.
+line-length = 79
+indent-width = 4
+target-version = "py311"
+
+extend-exclude = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+]
+
+[lint]
+preview = true
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "C4",
+    "SIM",
+    "A",
+    "PLR6104",
+]
+ignore = []
+fixable = ["ALL"]
+unfixable = []
+
+[lint.flake8-builtins]
+ignorelist = ["filter"]
+
+[lint.isort]
+lines-after-imports = 2
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
