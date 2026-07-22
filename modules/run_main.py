@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
-from modules.mode_spec import GameMode, ModeRegistry
-from modules.run_finalize import PrintFinalizer
-from modules.run_skip_move import BasicSkipMove
+from modules.mode_spec import GameMode, available_modes, get_mode
+from modules.run_finalize import print_budget_report, print_final_state
+from modules.run_skip_move import TurnEngine
 from modules.run_start_skip import make_start_skip_move
 from utils.logger_manager import get_logger
 from utils.user_io import ConsoleIO, UserIO
@@ -23,101 +21,61 @@ class Status(StrEnum):
     CANCELLED = "cancelled"
 
 
-class ModeSelector:
-    """UI helper to select a world mode."""
+def display_available_modes() -> None:
+    print("\nДоступные режимы:")
+    for number, (mode, spec) in enumerate(available_modes().items(), 1):
+        print(f"{number}. {spec.name} ({mode.value})")
+        if spec.description:
+            print(f"   {spec.description}")
 
-    @staticmethod
-    def display_available_modes() -> None:
-        modes = ModeRegistry.available()
-        print("\nДоступные режимы:")
-        for i, (mode, spec) in enumerate(modes.items(), 1):
-            print(f"{i}. {spec.name} ({mode.value})")
-            if spec.description:
-                print(f"   {spec.description}")
 
-    @staticmethod
-    def _by_number(choice: str) -> Optional[GameMode]:
-        if not choice.isdigit():
-            return None
-        idx = int(choice) - 1
-        modes = list(ModeRegistry.available().keys())
-        if 0 <= idx < len(modes):
-            return modes[idx]
-        print(f"Номер должен быть от 1 до {len(modes)}")
-        return None
-
-    @staticmethod
-    def _by_name(choice: str) -> Optional[GameMode]:
+def select_mode() -> GameMode:
+    display_available_modes()
+    modes = list(available_modes())
+    while True:
+        choice = input("\nВыберите режим (название или номер): ").strip()
+        if choice.isdigit():
+            index = int(choice) - 1
+            if 0 <= index < len(modes):
+                return modes[index]
+            print(f"Номер должен быть от 1 до {len(modes)}")
+            continue
         try:
             return GameMode(choice.lower())
         except ValueError:
-            return None
-
-    @classmethod
-    def select_mode(cls) -> GameMode:
-        cls.display_available_modes()
-        while True:
-            choice = input("\nВыберите режим (название или номер): ").strip()
-            if not choice:
-                print("Пустой ввод. Попробуйте снова.")
-                continue
-            by_num = cls._by_number(choice)
-            if by_num is not None:
-                return by_num
-            by_name = cls._by_name(choice)
-            if by_name is not None:
-                return by_name
-            print("Неизвестный режим. Попробуйте снова.")
-
-
-@dataclass
-class RunMain:
-    """Main entrypoint.
-
-    This is intentionally thin: it reads user input, builds the correct mode
-    spec, runs the shared engine, then prints the final stats.
-
-    All mode-specific behavior is registered in :class:`ModeRegistry`.
-    """
-
-    mode: Optional[GameMode] = None
-    io: UserIO = field(default_factory=ConsoleIO)
-
-    def run(self) -> Status:
-        try:
-            mode = self.mode or ModeSelector.select_mode()
-            spec = ModeRegistry.get(mode)
-            logger.info(f"Запуск: {spec.name} ({spec.mode.value})")
-
-            start_skip = make_start_skip_move(spec.stats_config)
-            stats = start_skip.parse_user_input_data()
-
-            engine = BasicSkipMove(
-                Economy=stats.Economy,
-                Industry=stats.Industry,
-                Agriculture=stats.Agriculture,
-                InnerPolitics=stats.InnerPolitics,
-                InMoveFunctions=spec.in_move_functions_factory(),
-                Rules=spec.rules_factory(),
-                io=self.io,
-                mode_name=spec.mode.value,
+            message = (
+                "Пустой ввод. Попробуйте снова."
+                if not choice
+                else "Неизвестный режим. Попробуйте снова."
             )
+            print(message)
 
-            engine.run()
 
-            PrintFinalizer(
-                Economy=engine.Economy,
-                Industry=engine.Industry,
-                Agriculture=engine.Agriculture,
-                InnerPolitics=engine.InnerPolitics,
-            ).finalize()
+def run_app(
+    mode: GameMode | None = None,
+    io: UserIO | None = None,
+) -> Status:
+    """Read input, resolve one turn and print the resulting world state."""
 
-            return Status.SUCCESS
-
-        except KeyboardInterrupt:
-            logger.info("Прервано пользователем")
-            return Status.CANCELLED
-        except Exception as e:
-            logger.error(f"Ошибка запуска: {e}")
-            print(e)
-            return Status.ERROR
+    try:
+        selected_mode = mode or select_mode()
+        spec = get_mode(selected_mode)
+        logger.info(f"Запуск: {spec.name} ({spec.mode.value})")
+        state = make_start_skip_move(spec.stats_config).read()
+        engine = TurnEngine(
+            state=state,
+            rules=spec.rules_factory(),
+            io=io or ConsoleIO(),
+            mode_name=spec.mode.value,
+        )
+        report = engine.run()
+        print_budget_report(report)
+        print_final_state(state)
+        return Status.SUCCESS
+    except KeyboardInterrupt:
+        logger.info("Прервано пользователем")
+        return Status.CANCELLED
+    except Exception as error:
+        logger.error(f"Ошибка запуска: {error}")
+        print(error)
+        return Status.ERROR

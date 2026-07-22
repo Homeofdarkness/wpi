@@ -1,46 +1,80 @@
+"""Output the resolved state."""
+
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-
-from stats.stats_base import StatsBase
+from modules.skip_move_types import SkipMoveReport, WorldState
 from utils.logger_manager import get_logger
+
 
 logger = get_logger("Finalizer")
 
 
-@dataclass
-class FinalizerBase(ABC):
-    """Finishes a run by rendering / exporting updated stats."""
+def render_budget_report(report: SkipMoveReport) -> str:
+    """Render the resolved turn as a compact, auditable budget statement."""
+    ledger = report.ledger
+    if ledger is None:
+        return "ОТЧЁТ БЮДЖЕТА\nНет данных"
 
-    Economy: StatsBase
-    Industry: StatsBase
-    Agriculture: StatsBase
-    InnerPolitics: StatsBase
+    lines = [
+        ("Казна до хода", report.budget_before),
+        ("Налоговый доход", report.tax_income),
+        ("Торговый доход", report.trade_income),
+        ("Доход филиалов", report.branches_income),
+        ("Доход промышленности", report.industry_income),
+        ("Доход науки", report.science_income),
+        ("Баланс ресурсов", report.resource_balance),
+        ("Валовые доходы", ledger.gross_income),
+        ("Доходы после модификаторов", ledger.effective_income),
+        ("Общие расходы", report.total_wastes),
+        ("Логистическая скидка", report.logistic_discount),
+        (
+            "Изменение казны до кредита",
+            report.budget_after_boost - report.budget_before,
+        ),
+        ("Казна до кредита", report.budget_after_boost),
+    ]
+    if report.credit_taken:
+        lines.extend(
+            (
+                ("Полученный кредит", report.credit_amount),
+                ("Казна после кредита", float(report.budget_final or 0.0)),
+            )
+        )
+    width = max(len(label) for label, _ in lines)
+    result = ["ОТЧЁТ БЮДЖЕТА"]
+    result.extend(
+        f"{label:<{width}} : {value:.1f} ед.вал"
+        for label, value in lines
+    )
+    return "\n".join(result)
 
-    @abstractmethod
-    def finalize(self) -> bool:
-        raise NotImplementedError
+
+def print_budget_report(report: SkipMoveReport) -> None:
+    text = render_budget_report(report)
+    print(text)
+    logger.info(text)
 
 
-@dataclass
-class PrintFinalizer(FinalizerBase):
-    """Default finalizer: prints stats and logs them."""
+def print_final_state(state: WorldState) -> None:
+    print("Стата - ")
+    for section in (
+        state.economy,
+        state.industry,
+        state.agriculture,
+        state.inner_politics,
+        state.probabilities,
+    ):
+        print(section)
+        logger.info(section)
 
-    def finalize(self) -> bool:
-        print("Стата - ")
-        print(self.Economy)
-        logger.info(self.Economy)
-        print(self.Industry)
-        logger.info(self.Industry)
-        print(self.Agriculture)
-        logger.info(self.Agriculture)
-        print(self.InnerPolitics)
-        logger.info(self.InnerPolitics)
-        return True
-
-
-# Backwards-compatible aliases
-BasicFinalizer = PrintFinalizer
-AtteriumFinalizer = PrintFinalizer
-IsfFinalizer = PrintFinalizer
+    # Rules and their remaining duration are deliberately kept outside the
+    # public stat block.  They still have to be returned after every turn so
+    # the next moves_skipper run does not lose or reset them.
+    production_report = state.industry.render_production_results()
+    next_turn_configuration = state.industry.render_configuration()
+    print("\nОтдельный отчёт промышленности -")
+    print(production_report)
+    print("\nНастройки промышленности для следующего хода -")
+    print(next_turn_configuration)
+    logger.info(production_report)
+    logger.info(next_turn_configuration)

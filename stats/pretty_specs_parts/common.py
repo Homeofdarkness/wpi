@@ -23,8 +23,11 @@ def available_trade_paths(model: Any) -> int:
     return 5 + 3 * (trade_rank - 1)
 
 
-def food_security_getter(model: Any) -> tuple[float, bool]:
-    value = getattr(model, "food_security", 0.0)
-    is_negative = getattr(model, "_is_negative_food_security", False)
-    is_negative = getattr(model, "is_negative_food_security", is_negative)
-    return value, bool(is_negative)
+def active_resource_count(model: Any) -> int:
+    method = getattr(model, "active_resource_count", None)
+    return int(method()) if callable(method) else 0
+
+
+def resource_stockpile(model: Any) -> float:
+    method = getattr(model, "resource_stockpile", None)
+    return float(method()) if callable(method) else 0.0

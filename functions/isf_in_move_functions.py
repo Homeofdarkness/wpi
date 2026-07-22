@@ -1,33 +1,28 @@
-from typing import List
-
-from functions.basic_in_move_functions import BasicInMoveFunctions
+"""ISF-only turn modifiers."""
 
 
-class IsfInMoveFunctions(BasicInMoveFunctions):
-    @staticmethod
-    def calculate_huge_economy_buff(egocentrism_development: float) -> float:
-        return max(1.0, (egocentrism_development * 0.3) / 10)
+def huge_economy_buff(egocentrism_development: float) -> float:
+    return max(1.0, egocentrism_development * 0.3 / 10)
 
-    @staticmethod
-    def calculate_agriculture_base_wastes(biome_richness: float,
-                                          agriculture_development: float,
-                                          C=550, K=10) -> float:
-        """Рассчитывает базовый коэффициент затрат на сельское хозяйство."""
-        biome_factor = (1 - biome_richness / 100)
-        development_factor = (100 - agriculture_development) / 100
 
-        base_cost = C * (biome_factor + development_factor) * K
-        return max(base_cost / 100, 1)
+def agriculture_base_wastes(
+    biome_richness: float,
+    agriculture_development: float,
+    constant: float = 550,
+    scale: float = 10,
+) -> float:
+    biome_factor = 1 - biome_richness / 100
+    development_factor = (100 - agriculture_development) / 100
+    base_cost = constant * (biome_factor + development_factor) * scale
+    return max(base_cost / 100, 1)
 
-    @staticmethod
-    def calculate_contentment_spotter_allegory(
-            contentment: int,
-            allegory_influence: float
-    ) -> float:
-        return contentment * (allegory_influence / 1000)
 
-    @staticmethod
-    def calculate_money_income_allegory_factor(
-            allegory_influence: float
-    ) -> float:
-        return 1 - (allegory_influence / 1000)
+def allegory_contentment_spotter(
+    contentment: int,
+    allegory_influence: float,
+) -> float:
+    return contentment * allegory_influence / 1000
+
+
+def allegory_income_factor(allegory_influence: float) -> float:
+    return 1 - allegory_influence / 1000

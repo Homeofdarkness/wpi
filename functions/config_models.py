@@ -6,7 +6,7 @@ from stats.basic_stats import (
     AgricultureStats,
     EconomyStats,
     IndustrialStats,
-    InnerPoliticsStats
+    InnerPoliticsStats,
 )
 
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, Optional
+from typing import Any
 
 
 RenderFunc = Callable[[Any, bool], str]
@@ -53,22 +54,23 @@ class PrettyLayoutSpec:
 
 
 def field(
-        key: str,
-        label: str,
-        *,
-        field_name: str | None = None,
-        decimals: int | None = None,
-        suffix: str = "",
-        default: Any = 0,
-        aliases: Iterable[str] = (),
-        read_only: bool = False,
-        getter: GetterFunc | None = None,
-        formatter: RenderFunc | None = None,
-        parser: ParserFunc | None = None,
-        parse_kind: str = "number",
+    key: str,
+    label: str,
+    *,
+    field_name: str | None = None,
+    decimals: int | None = None,
+    suffix: str = "",
+    default: Any = 0,
+    aliases: Iterable[str] = (),
+    read_only: bool = False,
+    getter: GetterFunc | None = None,
+    formatter: RenderFunc | None = None,
+    parser: ParserFunc | None = None,
+    parse_kind: str = "number",
 ) -> PrettyFieldSpec:
-    target_field_name = field_name if field_name is not None else (
-        None if read_only else key)
+    target_field_name = (
+        field_name if field_name is not None else (None if read_only else key)
+    )
     return PrettyFieldSpec(
         key=key,
         field_name=target_field_name,
@@ -86,19 +88,19 @@ def field(
 
 
 def list_item(
-        key: str,
-        label: str,
-        index: int,
-        *,
-        decimals: int | None = 1,
-        suffix: str = "",
-        default: Any = 0.0,
-        aliases: Iterable[str] = (),
-        read_only: bool = False,
-        getter: GetterFunc | None = None,
-        formatter: RenderFunc | None = None,
-        parser: ParserFunc | None = None,
-        parse_kind: str = "number",
+    key: str,
+    label: str,
+    index: int,
+    *,
+    decimals: int | None = 1,
+    suffix: str = "",
+    default: Any = 0.0,
+    aliases: Iterable[str] = (),
+    read_only: bool = False,
+    getter: GetterFunc | None = None,
+    formatter: RenderFunc | None = None,
+    parser: ParserFunc | None = None,
+    parse_kind: str = "number",
 ) -> PrettyFieldSpec:
     return PrettyFieldSpec(
         key=f"{key}[{index}]",
@@ -125,16 +127,6 @@ def budget_pair(value: Any, _: bool) -> str:
     prev_budget = _coerce_number(prev_budget, current_budget)
     delta = current_budget - prev_budget
     return f"{_format_number(delta, 1)} ({_format_number(current_budget, 1)})"
-
-
-def food_security(value: Any, debug: bool) -> str:
-    if not isinstance(value, tuple) or len(value) != 2:
-        value = (0.0, False)
-    raw_value, is_negative = value
-    text = _format_number(_coerce_number(raw_value, 0.0), 3)
-    if not debug and is_negative:
-        return f"!{text}%"
-    return f"{text}%"
 
 
 def identity(value: Any, _: bool) -> str:
@@ -246,8 +238,9 @@ def _render_value(spec: PrettyFieldSpec, value: Any, debug: bool) -> str:
     return text
 
 
-def render_pretty(model: Any, layout: PrettyLayoutSpec, *,
-                  debug: bool = False) -> str:
+def render_pretty(
+    model: Any, layout: PrettyLayoutSpec, *, debug: bool = False
+) -> str:
     lines: list[str] = []
 
     for line_spec in layout.lines:
@@ -314,16 +307,20 @@ def _render_row(texts: list[str], line_width: int, min_gap: int) -> str:
 
 
 def parse_pretty_text(
-        text: str,
-        layout: PrettyLayoutSpec,
-        model_fields: Dict[str, Any],
-        defaults: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    result: Dict[str, Any] = (defaults or {}).copy()
+    text: str,
+    layout: PrettyLayoutSpec,
+    model_fields: dict[str, Any],
+    defaults: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    result: dict[str, Any] = (defaults or {}).copy()
 
-    list_lengths: Dict[str, int] = {}
+    list_lengths: dict[str, int] = {}
     for spec in layout.fields.values():
-        if spec.read_only or spec.parse_kind == "skip" or spec.field_name is None:
+        if (
+            spec.read_only
+            or spec.parse_kind == "skip"
+            or spec.field_name is None
+        ):
             continue
         if spec.index is not None:
             list_lengths[spec.field_name] = max(
@@ -335,9 +332,11 @@ def parse_pretty_text(
             result[field_name] = [0.0] * length
 
     parse_specs = [
-        spec for spec in layout.fields.values()
-        if
-        not spec.read_only and spec.parse_kind != "skip" and spec.field_name is not None
+        spec
+        for spec in layout.fields.values()
+        if not spec.read_only
+        and spec.parse_kind != "skip"
+        and spec.field_name is not None
     ]
 
     for line in _normalize_lines(text):
@@ -367,8 +366,7 @@ def _normalize_lines(text: str) -> list[str]:
 
 
 def _find_matches_in_line(
-        line: str,
-        specs: list[PrettyFieldSpec]
+    line: str, specs: list[PrettyFieldSpec]
 ) -> list[tuple[int, int, PrettyFieldSpec]]:
     candidates: list[tuple[int, int, PrettyFieldSpec]] = []
     for spec in specs:
@@ -379,8 +377,11 @@ def _find_matches_in_line(
                 if pos == -1:
                     continue
                 end = pos + len(token)
-                if best is None or pos < best[0] or (
-                        pos == best[0] and end > best[1]):
+                if (
+                    best is None
+                    or pos < best[0]
+                    or (pos == best[0] and end > best[1])
+                ):
                     best = (pos, end)
         if best is not None:
             candidates.append((best[0], best[1], spec))
@@ -402,16 +403,20 @@ def _token_variants(label: str) -> tuple[str, ...]:
     )
 
 
-def _assign_parsed_value(result: Dict[str, Any], spec: PrettyFieldSpec,
-                         value_text: str,
-                         model_fields: Dict[str, Any]) -> None:
+def _assign_parsed_value(
+    result: dict[str, Any],
+    spec: PrettyFieldSpec,
+    value_text: str,
+    model_fields: dict[str, Any],
+) -> None:
     if spec.parser is not None:
         parsed_value = spec.parser(value_text)
     elif spec.parse_kind == "budget":
         parsed_value = parse_budget_pair(value_text)
     else:
-        parsed_value = parse_first_number(value_text,
-                                          _coerce_number(spec.default, 0.0))
+        parsed_value = parse_first_number(
+            value_text, _coerce_number(spec.default, 0.0)
+        )
 
     if spec.parse_kind == "budget":
         current_budget, prev_budget = parsed_value
@@ -423,22 +428,25 @@ def _assign_parsed_value(result: Dict[str, Any], spec: PrettyFieldSpec,
         target_list = result.setdefault(spec.field_name, [])
         while len(target_list) <= spec.index:
             target_list.append(0.0)
-        target_list[spec.index] = _cast_value(spec.field_name, parsed_value,
-                                              model_fields)
+        target_list[spec.index] = _cast_value(
+            spec.field_name, parsed_value, model_fields
+        )
         return
 
-    result[spec.field_name] = _cast_value(spec.field_name, parsed_value,
-                                          model_fields)
+    result[spec.field_name] = _cast_value(
+        spec.field_name, parsed_value, model_fields
+    )
 
 
-def _cast_value(field_name: str, value: Any,
-                model_fields: Dict[str, Any]) -> Any:
+def _cast_value(
+    field_name: str, value: Any, model_fields: dict[str, Any]
+) -> Any:
     field_info = model_fields.get(field_name)
     if field_info is None:
         return value
     annotation = field_info.annotation
-    if annotation == int:
+    if annotation is int:
         return int(round(_coerce_number(value, 0.0)))
-    if annotation == float:
+    if annotation is float:
         return float(_coerce_number(value, 0.0))
     return value

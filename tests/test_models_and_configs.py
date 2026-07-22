@@ -2,28 +2,44 @@ from __future__ import annotations
 
 import random
 
-from functions.basic_in_move_functions import BasicInMoveFunctions
-from functions.basic_stats_functions import BasicStatsFunctions
+import pytest
+
 from functions.config_models import EdenModel
-from functions.economy_models import PopulationGrowthModel, TradePotentialModel
-from functions.income_models import MoneyIncomeModel, TaxIncomeModel
-from functions.industry_models import CivilUsageModel
-from functions.society_models import DemographyModel, IntegrityOfFaithModel
-from modules.run_skip_move import BasicSkipMove
+from functions.economy_models import population_growth, trade_potential
+from functions.income_models import simple_stability_income_boost, tax_income
+from functions.industry_models import civil_usage
+from functions.society_models import (
+    integrity_of_faith_factor,
+    population_decrement_factor,
+)
+from modules.run_skip_move import TurnEngine
+from modules.skip_move_types import WorldState
 from utils.user_io import TestIO
 
 
-def test_basic_stats_functions_delegate_to_models():
-    assert BasicStatsFunctions.calculate_population_growth(1_500_000) == PopulationGrowthModel.calculate(1_500_000)
-    assert BasicStatsFunctions.calculate_trade_potential(8, 95) == TradePotentialModel.calculate(8, 95)
-    assert BasicStatsFunctions.calculate_civil_usage(100.0, 80.0, 70.0) == CivilUsageModel.calculate(100.0, 80.0, 70.0)
+def test_core_formulas_are_direct_functions():
+    assert population_growth(1_500_000) == pytest.approx(14_805)
+    assert trade_potential(8, 95) == pytest.approx(10.7)
+    assert civil_usage(100.0, 80.0, 70.0) == 83
 
 
-def test_basic_in_move_functions_delegate_to_models():
-    assert BasicInMoveFunctions.calculate_tax_income(22.6, 8.1, 105.0, 8.7, 27.0, 12.5, 13, 15_361_475) == TaxIncomeModel.calculate(22.6, 8.1, 105.0, 8.7, 27.0, 12.5, 13, 15_361_475)
-    assert BasicInMoveFunctions.calculate_money_income_simple_boost(100) == MoneyIncomeModel.simple_boost(100)
-    assert BasicInMoveFunctions.calculate_population_decrement_coefficient(3) == DemographyModel.decrement_coefficient(3)
-    assert BasicInMoveFunctions.calculate_integrity_of_faith_factor(90) == IntegrityOfFaithModel.factor(90)
+def test_finance_and_society_formulas():
+    assert (
+        tax_income(
+            22.6,
+            8.1,
+            105.0,
+            8.7,
+            27.0,
+            12.5,
+            13,
+            15_361_475,
+        )
+        > 0
+    )
+    assert simple_stability_income_boost(100) == pytest.approx(1.293)
+    assert population_decrement_factor(3) == 0.97
+    assert integrity_of_faith_factor(90) == 1.018
 
 
 def test_eden_model_maps_legacy_numbers_into_valid_basic_bundle():
@@ -38,22 +54,29 @@ def test_eden_model_maps_legacy_numbers_into_valid_basic_bundle():
     assert bundle.industry.processing_efficiency == 69.0
     assert bundle.agriculture.biome_richness == 100.0
     assert bundle.inner_politics.state_apparatus_efficiency == 114
-    assert sum([
-        bundle.economy.high_quality_percent,
-        bundle.economy.mid_quality_percent,
-        bundle.economy.low_quality_percent,
-    ]) == 100.0
+    assert (
+        sum(
+            [
+                bundle.economy.high_quality_percent,
+                bundle.economy.mid_quality_percent,
+                bundle.economy.low_quality_percent,
+            ]
+        )
+        == 100.0
+    )
 
 
 def test_skip_move_runs_for_eden_model():
     random.seed(7)
     bundle = EdenModel.build()
 
-    engine = BasicSkipMove(
-        Economy=bundle.economy,
-        Industry=bundle.industry,
-        Agriculture=bundle.agriculture,
-        InnerPolitics=bundle.inner_politics,
+    engine = TurnEngine(
+        state=WorldState(
+            economy=bundle.economy,
+            industry=bundle.industry,
+            agriculture=bundle.agriculture,
+            inner_politics=bundle.inner_politics,
+        ),
         io=TestIO(inputs=[True, 0.0]),
     )
 

@@ -1,63 +1,72 @@
 from __future__ import annotations
 
-from functions.atterium_stats_functions import AtteriumStatsFunctions
-from functions.basic_stats_functions import BasicStatsFunctions
-from functions.isf_stats_functions import IsfStatsFunctions
+from functions import atterium_stats_functions as atterium
+from functions import isf_stats_functions as isf
+from functions.economy_models import (
+    branches_income,
+    population_growth,
+    trade_potential,
+)
+from functions.industry_models import (
+    civil_efficiency_logistic_factor,
+    civil_usage,
+    industry_basic_stats,
+    industry_coefficient,
+)
+from functions.society_models import society_decline, success_chance
 
 
 def populate_basic_economy(stats) -> None:
-    stats.income = round(
-        BasicStatsFunctions.calculate_population_growth(stats.population_count)
-    )
-    stats.trade_potential = BasicStatsFunctions.calculate_trade_potential(
+    stats.income = round(population_growth(stats.population_count))
+    stats.trade_potential = trade_potential(
         stats.trade_rank,
         stats.trade_efficiency,
     )
-    stats.branches_income = BasicStatsFunctions.calculate_branches_income(
+    stats.branches_income = branches_income(
         stats.branches_count,
         stats.branches_efficiency,
     )
 
 
 def populate_basic_industry(stats) -> None:
-    stats.civil_usage = BasicStatsFunctions.calculate_civil_usage(
+    stats.civil_usage = civil_usage(
         stats.civil_security,
         stats.tvr1,
         stats.tvr2,
     )
-    stats.industry_coefficient = BasicStatsFunctions.calculate_industry_coefficient(
-        stats.processing_production,
-        stats.processing_usage,
-        stats.processing_efficiency,
-        sum(stats.usages) // len(stats.usages),
-    ) if stats.usages else 0
-
-    efficiency, max_potential, expected_wastes = (
-        BasicStatsFunctions.calculate_industry_basic_stats(
-            stats.industry_coefficient,
-            stats.civil_usage,
-            stats.standardization,
+    stats.industry_coefficient = (
+        industry_coefficient(
+            stats.processing_production,
+            stats.processing_usage,
+            stats.processing_efficiency,
+            sum(stats.usages) // len(stats.usages),
         )
+        if stats.usages
+        else 0
     )
 
-    stats.civil_efficiency = (
-        efficiency * BasicStatsFunctions.calculate_civil_efficiency_boost_from_logistic(
-            stats.logistic
-        )
+    efficiency, max_potential, expected_wastes = industry_basic_stats(
+        stats.industry_coefficient,
+        stats.civil_usage,
+        stats.standardization,
+    )
+
+    stats.civil_efficiency = efficiency * civil_efficiency_logistic_factor(
+        stats.logistic
     )
     stats.max_potential = max_potential
     stats.expected_wastes = expected_wastes
 
 
 def populate_basic_inner_politics(stats) -> None:
-    stats.success_chance = round(
-        BasicStatsFunctions.calculate_success_chance(
+    stats.research_success_chance = round(
+        success_chance(
             stats.knowledge_level,
             stats.education_level,
             stats.erudition_will,
         )
     )
-    stats.society_decline = BasicStatsFunctions.calculate_society_decline(
+    stats.society_decline = society_decline(
         stats.contentment,
         stats.government_trust,
         stats.many_children_traditions,
@@ -75,14 +84,14 @@ def populate_basic_inner_politics(stats) -> None:
 
 
 def populate_atterium_inner_politics(stats) -> None:
-    stats.success_chance = round(
-        BasicStatsFunctions.calculate_success_chance(
+    stats.research_success_chance = round(
+        success_chance(
             stats.knowledge_level,
             stats.education_level,
             stats.erudition_will,
         )
     )
-    stats.society_decline = AtteriumStatsFunctions.calculate_society_decline(
+    stats.society_decline = atterium.society_decline(
         stats.contentment,
         stats.government_trust,
         stats.many_children_traditions,
@@ -102,14 +111,14 @@ def populate_atterium_inner_politics(stats) -> None:
 
 
 def populate_isf_inner_politics(stats) -> None:
-    stats.success_chance = round(
-        BasicStatsFunctions.calculate_success_chance(
+    stats.research_success_chance = round(
+        success_chance(
             stats.knowledge_level,
             stats.education_level,
             stats.erudition_will,
         )
     )
-    stats.society_decline = IsfStatsFunctions.calculate_society_decline(
+    stats.society_decline = isf.society_decline(
         stats.contentment,
         stats.government_trust,
         stats.many_children_traditions,

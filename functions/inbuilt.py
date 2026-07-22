@@ -1,50 +1,57 @@
+"""Small numerical helpers shared by domain formulas."""
+
+from __future__ import annotations
+
 import math
-from typing import Tuple
 
 
-class InbuiltFunctions:
+def sigmoid(value: float) -> float:
+    return 1 / (1 + math.exp(-value))
 
-    @staticmethod
-    def sigmoid(n: float) -> float:
-        return 1 / (1 + math.exp(-n))
 
-    @staticmethod
-    def tanh(n: float) -> float:
-        return (math.exp(n) - math.exp(-n)) / (math.exp(n) + math.exp(-n))
+def tanh(value: float) -> float:
+    return math.tanh(value)
 
-    @staticmethod
-    def euclidean_distance(a: float, b: float) -> float:
-        return ((100 - a) ** 2 + (100 - b) ** 2) ** 0.5
 
-    @staticmethod
-    def pdf_manual(x: float, mu: float, sigma: float) -> float:
-        coefficient = 1 / (sigma * math.sqrt(2 * math.pi))
-        exponent = math.exp(-((x - mu) ** 2) / (2 * sigma ** 2))
+def distance_from_ideal(first: float, second: float) -> float:
+    """Distance from the ideal ``(100, 100)`` production point."""
+    return math.hypot(100 - first, 100 - second)
 
-        return coefficient * exponent
 
-    @staticmethod
-    def count_proba_params(
-            points: list,
-            probabilities: list
-    ) -> Tuple[float, float]:
-        expected_value = sum(x * p for x, p in zip(points, probabilities))
-        variance = sum(((x - expected_value) ** 2) * p for x, p in
-                       zip(points, probabilities))
+def normal_pdf(value: float, mean: float, sigma: float) -> float:
+    coefficient = 1 / (sigma * math.sqrt(2 * math.pi))
+    exponent = math.exp(-((value - mean) ** 2) / (2 * sigma**2))
+    return coefficient * exponent
 
-        return expected_value, variance
 
-    @staticmethod
-    def parabola(x: float, a: float = 1, b: float = 1, c: float = 1) -> float:
-        return a * x ** 2 + b * x + c
+def weighted_moments(
+    points: list[float],
+    probabilities: list[float],
+) -> tuple[float, float]:
+    pairs = list(zip(points, probabilities, strict=True))
+    expected_value = sum(value * probability for value, probability in pairs)
+    variance = sum(
+        ((value - expected_value) ** 2) * probability
+        for value, probability in pairs
+    )
+    return expected_value, variance
 
-    @staticmethod
-    def gaussian_kernel(x: float) -> float:
-        if x == 0:
-            return 0.0
-        inverted_root = 1 / math.sqrt(2 * math.pi)
-        return inverted_root * math.exp(-((x - 1) ** 2) / (2 * x ** 2))
 
-    @staticmethod
-    def safe_div(numerator: float, denominator: float) -> float:
-        return numerator / denominator if denominator != 0 else 0.0
+def parabola(
+    value: float,
+    a: float = 1,
+    b: float = 1,
+    c: float = 1,
+) -> float:
+    return a * value**2 + b * value + c
+
+
+def gaussian_kernel(value: float) -> float:
+    if value == 0:
+        return 0.0
+    inverted_root = 1 / math.sqrt(2 * math.pi)
+    return inverted_root * math.exp(-((value - 1) ** 2) / (2 * value**2))
+
+
+def safe_div(numerator: float, denominator: float) -> float:
+    return numerator / denominator if denominator != 0 else 0.0

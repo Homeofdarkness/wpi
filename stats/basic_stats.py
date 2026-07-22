@@ -1,5 +1,3 @@
-from typing import List, Dict, Optional
-
 import pydantic
 from typing_extensions import override
 
@@ -8,12 +6,30 @@ from stats.derived_fields import (
     populate_basic_industry,
     populate_basic_inner_politics,
 )
-from stats.pretty_layouts import get_layout_for_class
+from stats.industry_components import (
+    RESOURCE_CATALOG,
+    ExtractionGroup,
+    ExtractionOperation,
+    IndustrialWorkforce,
+    ResourceInventory,
+    ResourceKind,
+    ResourceRegistration,
+    ResourceState,
+    ResourceTransfer,
+    ResourceType,
+)
+from stats.industry_text import (
+    parse_industry_configuration,
+    render_industry_configuration,
+    render_resource_state_table,
+)
+from stats.pretty_specs import get_layout_for_class
+from stats.production_components import ProductionResult, ProductionRule
 from stats.stats_base import StatsBase
 
 
-class EconomyStats(StatsBase):
-    population_count: int
+class EconomyStatsBase(StatsBase):
+    population_count: int = pydantic.Field(..., gt=0)
     decrement_coefficient: int = pydantic.Field(..., ge=0, le=5)
     inflation: float = pydantic.Field(..., ge=0, le=100)
     current_budget: float
@@ -21,12 +37,10 @@ class EconomyStats(StatsBase):
     universal_tax: float
     excise: float
     additions: float
-    small_enterprise_tax: float
-    large_enterprise_tax: float
-    gov_wastes: List[float]
-    med_wastes: List[float]
-    other_wastes: List[float]
-    war_wastes: List[float]
+    gov_wastes: list[float] = pydantic.Field(..., min_length=4)
+    med_wastes: list[float] = pydantic.Field(..., min_length=5)
+    other_wastes: list[float] = pydantic.Field(..., min_length=2)
+    war_wastes: list[float] = pydantic.Field(..., min_length=3)
     trade_rank: int
     trade_usage: int
     trade_efficiency: int
@@ -46,18 +60,26 @@ class EconomyStats(StatsBase):
     income: float | None = None
     trade_potential: float | None = None
     branches_income: float | None = None
+    public_debt: float = pydantic.Field(0.0, ge=0)
+    annual_interest_rate: float = pydantic.Field(0.0, ge=0, le=100)
+    resource_balance: float = 0.0
 
-    @pydantic.model_validator(mode='after')
-    def check_trade_sum(self) -> 'EconomyStats':
-        goods_percent = self.low_quality_percent + self.mid_quality_percent + self.high_quality_percent
+    @pydantic.model_validator(mode="after")
+    def check_trade_sum(self) -> "EconomyStatsBase":
+        goods_percent = (
+            self.low_quality_percent
+            + self.mid_quality_percent
+            + self.high_quality_percent
+        )
         if abs(goods_percent - 100) > 0.1:
             raise ValueError(
                 f"Сумма товаров разных качеств должна "
-                f"быть равна 100, а на деле - {goods_percent}")
+                f"быть равна 100, а на деле - {goods_percent}"
+            )
 
         return self
 
-    def recalculate_derived_fields(self) -> None:
+    def recalculate_derived_fields(self):
         populate_basic_economy(self)
 
     def trade_usage_load(self) -> int:
@@ -65,25 +87,10 @@ class EconomyStats(StatsBase):
             return 0
         return round(self.trade_usage / self.trade_potential * 100)
 
-    @override
-    def debug(self):
-        return self.render_pretty(debug=True)
 
-    @override
-    def __str__(self):
-        return self.render_pretty()
-
-    @staticmethod
-    @override
-    def _get_field_groups():
-        from stats.schemas.economy_schema import build_field_groups
-        return build_field_groups("basic")
-
-    @staticmethod
-    @override
-    def _get_field_names():
-        from stats.schemas.economy_schema import build_field_names
-        return build_field_names("basic")
+class EconomyStats(EconomyStatsBase):
+    small_enterprise_tax: float
+    large_enterprise_tax: float
 
     @staticmethod
     @override
@@ -91,11 +98,12 @@ class EconomyStats(StatsBase):
         return get_layout_for_class("EconomyStats")
 
 
+# Переделываем с 0)
 class IndustrialStats(StatsBase):
     processing_production: float = pydantic.Field(..., ge=0, le=100)
     processing_usage: float = pydantic.Field(..., ge=0, le=100)
     processing_efficiency: float = pydantic.Field(..., ge=0, le=100)
-    usages: List[float]
+    usages: list[float] = pydantic.Field(..., min_length=1)
     civil_security: float = pydantic.Field(..., ge=0, le=100)
     standardization: float = pydantic.Field(..., ge=0, le=100)
     logistic: float = pydantic.Field(..., ge=0, le=100)
@@ -110,56 +118,322 @@ class IndustrialStats(StatsBase):
     civil_efficiency: float | None = None
     max_potential: float | None = None
     expected_wastes: float | None = None
+    resource_inventory: ResourceInventory = pydantic.Field(
+        default_factory=ResourceInventory
+    )
+    workforce: IndustrialWorkforce = pydantic.Field(
+        default_factory=IndustrialWorkforce
+    )
+    registered_resource_groups: list[ExtractionGroup] = pydantic.Field(
+        default_factory=list
+    )
+    extraction_operations: list[ExtractionOperation] = pydantic.Field(
+        default_factory=list
+    )
+    last_extracted: dict[ResourceType, float] = pydantic.Field(
+        default_factory=dict
+    )
+    production_rules: list[ProductionRule] = pydantic.Field(
+        default_factory=list
+    )
+    last_production: list[ProductionResult] = pydantic.Field(
+        default_factory=list
+    )
+    resource_demands: dict[ResourceType, float] = pydantic.Field(
+        default_factory=dict
+    )
+    resource_shortages: dict[ResourceType, float] = pydantic.Field(
+        default_factory=dict
+    )
 
-    def recalculate_derived_fields(self) -> None:
+    def recalculate_derived_fields(self):
         populate_basic_industry(self)
 
-    @override
-    def debug(self):
-        return self.render_pretty(debug=True)
+    def collect_resource(
+        self,
+        resource: ResourceType,
+        amount: float,
+    ) -> ResourceTransfer:
+        return self.resource_inventory.collect(resource, amount)
 
-    @override
-    def __str__(self):
-        return self.render_pretty()
+    def spend_resource(
+        self,
+        resource: ResourceType,
+        amount: float,
+    ) -> ResourceTransfer:
+        return self.resource_inventory.spend(resource, amount)
 
-    @staticmethod
-    @override
-    def _get_field_groups() -> Dict[str, List[str]]:
-        return {
-            "Перерабатывающая промышленность": [
-                'processing_production', 'processing_usage',
-                'processing_efficiency'
-            ],
-            "Обеспеченность": [
-                'usages'
-            ],
-            "Гражданская промышленность": [
-                'civil_security', 'standardization', 'logistic',
-                'tvr1', 'tvr2', 'overproduction_coefficient'
-            ],
-            "Военная промышленность": [
-                'war_production_efficiency'
+    def register_resource(
+        self,
+        registration: ResourceRegistration | ResourceType,
+        **configuration,
+    ) -> ResourceState:
+        """Register one country resource and its initial state."""
+        if isinstance(registration, ResourceType):
+            registration = ResourceRegistration(
+                resource=registration,
+                **configuration,
+            )
+        elif configuration:
+            raise TypeError(
+                "configuration нельзя передавать вместе с готовым "
+                "ResourceRegistration"
+            )
+
+        state = ResourceState(
+            resource=registration.resource,
+            enabled=True,
+            stockpile=registration.stockpile,
+            storage_capacity=registration.storage_capacity,
+            accessibility=registration.accessibility,
+            quality=registration.quality,
+        )
+        self.resource_inventory.resources[registration.resource] = state
+        self.register_resource_group(state.definition.group)
+        if registration.consumption_per_turn > 0:
+            self.resource_demands[registration.resource] = (
+                registration.consumption_per_turn
+            )
+        else:
+            self.resource_demands.pop(registration.resource, None)
+        return state
+
+    def register_resource_group(self, group: ExtractionGroup) -> None:
+        """Register a group once while preserving the visible order."""
+        if group not in self.registered_resource_groups:
+            self.registered_resource_groups.append(group)
+
+    def set_extraction_operation(
+        self,
+        operation: ExtractionOperation,
+    ) -> None:
+        """Add or replace extraction by one registered alias."""
+        try:
+            group = ExtractionGroup(operation.target)
+        except ValueError:
+            pass
+        else:
+            self.register_resource_group(group)
+        for index, current in enumerate(self.extraction_operations):
+            if current.target_key == operation.target_key:
+                self.extraction_operations[index] = operation
+                return
+        self.extraction_operations.append(operation)
+
+    def resolve_extraction_target(
+        self,
+        operation: ExtractionOperation,
+    ) -> tuple[ExtractionGroup, ResourceType | None]:
+        """Resolve one alias: registered groups take precedence."""
+        for group in self.registered_resource_groups:
+            if group.value == operation.target:
+                return group, None
+        try:
+            resource = ResourceType(operation.target)
+        except ValueError as error:
+            raise ValueError(
+                f"Неизвестная цель добычи: {operation.target}"
+            ) from error
+        state = self.resource_inventory.resources[resource]
+        if not state.enabled:
+            raise ValueError(
+                f"Ресурс добычи не зарегистрирован: {operation.target}"
+            )
+        return state.definition.group, resource
+
+    def set_production_rule(self, rule: ProductionRule) -> None:
+        """Add or replace a production rule by its stable identifier."""
+        for index, current in enumerate(self.production_rules):
+            if current.rule_id == rule.rule_id:
+                self.production_rules[index] = rule
+                return
+        self.production_rules.append(rule)
+
+    def validate_industry_configuration(self) -> None:
+        """Validate relationships that span several industrial models."""
+        resources = self.resource_inventory.resources
+        registered_resources = {
+            resource for resource, state in resources.items() if state.enabled
+        }
+        registered_groups = set(self.registered_resource_groups)
+        for rule in self.production_rules:
+            if not rule.enabled:
+                continue
+            referenced = (
+                set(rule.inputs) | set(rule.outputs) | set(rule.byproducts)
+            )
+            unavailable = [
+                resource
+                for resource in referenced
+                if resource not in registered_resources
             ]
-        }
+            if unavailable:
+                names = ", ".join(resource.value for resource in unavailable)
+                raise ValueError(
+                    f"Правило {rule.rule_id} использует "
+                    f"незарегистрированные ресурсы: {names}"
+                )
+
+            if (
+                rule.target_resource is not None
+                and rule.target_resource not in registered_resources
+            ):
+                raise ValueError(
+                    f"Цель правила {rule.rule_id} не зарегистрирована: "
+                    f"{rule.target_resource.value}"
+                )
+            if (
+                rule.target_group is not None
+                and rule.target_group not in registered_groups
+            ):
+                raise ValueError(
+                    f"Целевая группа правила {rule.rule_id} не "
+                    f"зарегистрирована: {rule.target_group.value}"
+                )
+
+        for operation in self.extraction_operations:
+            target_group, target_resource = self.resolve_extraction_target(
+                operation
+            )
+            eligible = [
+                state
+                for state in resources.values()
+                if state.enabled
+                and state.definition.group is target_group
+                and state.definition.kind
+                not in {ResourceKind.MANUFACTURED, ResourceKind.BYPRODUCT}
+                and (
+                    target_resource is None
+                    or state.resource is target_resource
+                )
+            ]
+            if not eligible:
+                raise ValueError(
+                    f"У добычи {operation.target_key} нет подходящих "
+                    "зарегистрированных ресурсов"
+                )
+
+    def active_resource_count(self) -> int:
+        return self.resource_inventory.active_count()
+
+    def resource_stockpile(self) -> float:
+        return self.resource_inventory.total_stockpile()
+
+    def render_resource_details(self) -> str:
+        active = [
+            state
+            for state in self.resource_inventory.resources.values()
+            if state.enabled
+        ]
+        if not active:
+            return "СОСТОЯНИЕ РЕСУРСОВ\nНет данных"
+        return "\n".join(
+            (
+                "СОСТОЯНИЕ РЕСУРСОВ",
+                *render_resource_state_table(
+                    active,
+                    self.last_extracted,
+                    self.resource_shortages,
+                ),
+            )
+        )
+
+    def render_production_results(self) -> str:
+        rows = ["ПРОИЗВОДСТВО ЗА ХОД"]
+        if not self.last_production:
+            if not self.production_rules:
+                rows.append("Правила производства не загружены")
+            elif not any(rule.enabled for rule in self.production_rules):
+                rows.append("Нет активных правил производства")
+            else:
+                rows.append("Текущий ход ещё не рассчитывался")
+            return "\n".join(rows)
+        for result in self.last_production:
+            remaining = (
+                "∞"
+                if result.turns_remaining is None
+                else str(result.turns_remaining)
+            )
+            rows.append(
+                f"{result.name} [{result.rule_id}]: "
+                f"план {result.requested_batches:.1f}, "
+                f"выполнено {result.completed_batches:.1f} партий, "
+                f"осталось ходов {remaining}"
+            )
+            rows.append(
+                "  Взято: "
+                f"{self._format_resource_amounts(result.inputs_spent)}"
+            )
+            rows.append(
+                "  Выпущено: "
+                f"{self._format_resource_amounts(result.outputs_produced)}"
+            )
+            if result.byproducts_produced:
+                rows.append(
+                    "  Побочно: "
+                    f"{self._format_resource_amounts(result.byproducts_produced)}"
+                )
+        return "\n".join(rows)
 
     @staticmethod
-    @override
-    def _get_field_names() -> Dict[str, str]:
-        return {
-            'processing_production': 'Процент производства (%)',
-            'processing_usage': 'Процент использования (%)',
-            'processing_efficiency': 'Эффективность добычи (%)',
-            'usages': 'Обеспеченность (ресурсная база, рабочие, сырье, квалификация)',
-            'civil_security': 'Обеспеченность сырьем (%)',
-            'standardization': 'Стандартизация (%)',
-            'logistic': 'Логистика предприятий (%)',
-            'tvr1': 'Обеспеченность ТЖН',
-            'tvr2': 'Обеспеченность ТНП',
-            'overproduction_coefficient': 'Процент перепроизводства (%)',
-            'war_production_efficiency': 'Эффективность военного производства (%)',
-            'industry_income': 'ПСС (ед.вал.)',
-            'consumption_of_goods': 'Потребление товаров (%)'
-        }
+    def _format_resource_amounts(
+        values: dict[ResourceType, float],
+    ) -> str:
+        if not values:
+            return "нет"
+        return ", ".join(
+            f"{RESOURCE_CATALOG[resource].name} {amount:.1f}"
+            for resource, amount in values.items()
+        )
+
+    def render_configuration(self) -> str:
+        return render_industry_configuration(
+            resources=self.resource_inventory.resources,
+            operations=self.extraction_operations,
+            production_rules=self.production_rules,
+            demands=self.resource_demands,
+            registered_groups=self.registered_resource_groups,
+        )
+
+    def __str__(self):
+        pretty = self.render_pretty()
+        resources = self.render_resource_details()
+        if pretty.startswith("```\n") and pretty.endswith("\n```"):
+            return f"{pretty[:-4]}\n\n{resources}\n```"
+        return f"{pretty}\n{resources}"
+
+    @classmethod
+    def from_stats_text(
+        cls,
+        data: str,
+        defaults: dict | None = None,
+    ) -> "IndustrialStats":
+        stats = super().from_stats_text(data, defaults)
+        configuration = parse_industry_configuration(data)
+        if configuration is None:
+            if (
+                "СОСТОЯНИЕ РЕСУРСОВ" in data
+                and "СОСТОЯНИЕ РЕСУРСОВ\nНет данных" not in data
+            ):
+                raise ValueError(
+                    "Для состояния ресурсов нужен отдельный блок "
+                    "НАСТРОЙКА ПРОМЫШЛЕННОСТИ"
+                )
+            return stats
+
+        stats.resource_inventory = ResourceInventory()
+        stats.registered_resource_groups = list(configuration.groups)
+        stats.extraction_operations = []
+        for registration in configuration.registrations:
+            stats.register_resource(registration)
+        for operation in configuration.operations:
+            stats.set_extraction_operation(operation)
+        stats.production_rules = configuration.production_rules
+        stats.resource_demands = configuration.demands
+        stats.last_extracted = configuration.extracted
+        stats.resource_shortages = configuration.shortages
+        stats.validate_industry_configuration()
+        return stats
 
     @staticmethod
     @override
@@ -183,7 +457,11 @@ class InnerPoliticsStats(StatsBase):
     provinces_count: int
     provinces_waste: float
     military_equipment: float
-    control: list
+    control: list[float] = pydantic.Field(
+        ...,
+        min_length=4,
+        max_length=4,
+    )
     contentment: int
     government_trust: float
     many_children_traditions: int
@@ -198,31 +476,17 @@ class InnerPoliticsStats(StatsBase):
     grace_of_the_highest: int
     commitment_to_cause: int
     departure_from_truths: int
-    success_chance: float | None = None
+    research_success_chance: float | None = None
     society_decline: float | None = None
+    inequality: float = pydantic.Field(25.0, ge=0, le=100)
+    polarization: float = pydantic.Field(20.0, ge=0, le=100)
+    information_quality: float = pydantic.Field(60.0, ge=0, le=100)
+    regional_separatism: float = pydantic.Field(0.0, ge=0, le=100)
+    social_mobility: float = pydantic.Field(50.0, ge=0, le=100)
+    war_fatigue: float = pydantic.Field(0.0, ge=0, le=100)
 
-    def recalculate_derived_fields(self) -> None:
+    def recalculate_derived_fields(self):
         populate_basic_inner_politics(self)
-
-    @override
-    def debug(self):
-        return self.render_pretty(debug=True)
-
-    @override
-    def __str__(self):
-        return self.render_pretty()
-
-    @staticmethod
-    @override
-    def _get_field_groups() -> Dict[str, List[str]]:
-        from stats.schemas.inner_politics_schema import build_field_groups
-        return build_field_groups("basic")
-
-    @staticmethod
-    @override
-    def _get_field_names() -> Dict[str, str]:
-        from stats.schemas.inner_politics_schema import build_field_names
-        return build_field_names("basic")
 
     @staticmethod
     @override
@@ -236,11 +500,15 @@ class AgricultureStats(StatsBase):
     others: float
     biome_richness: float
     overprotective_effects: int
-    securities: list
-    workers_percent: float
-    workers_redistribution: float
+    securities: list[float] = pydantic.Field(
+        ...,
+        min_length=3,
+        max_length=3,
+    )
+    workers_percent: float = pydantic.Field(..., ge=0)
+    workers_redistribution: float = pydantic.Field(..., ge=0, le=100)
     storages_upkeep: float
-    consumption_factor: float
+    consumption_factor: float = pydantic.Field(..., ge=0)
     environmental_food: int
     agriculture_deceases: float
     agriculture_natural_deceases: float
@@ -251,34 +519,11 @@ class AgricultureStats(StatsBase):
     food_supplies: float = 0
 
     # Dynamic params (calculated in skip-move)
-    expected_wastes: Optional[float] = None
-    food_security: Optional[float] = None
-    food_diversity: Optional[float] = None
-    agriculture_efficiency: Optional[float] = None
-    agriculture_development: Optional[float] = None
-
-    # Inner Stat Params
-    _is_negative_food_security: bool = False
-
-    @override
-    def debug(self):
-        return self.render_pretty(debug=True)
-
-    @override
-    def __str__(self):
-        return self.render_pretty()
-
-    @staticmethod
-    @override
-    def _get_field_groups() -> Dict[str, List[str]]:
-        from stats.schemas.agriculture_schema import build_field_groups
-        return build_field_groups("basic")
-
-    @staticmethod
-    @override
-    def _get_field_names() -> Dict[str, str]:
-        from stats.schemas.agriculture_schema import build_field_names
-        return build_field_names("basic")
+    expected_wastes: float | None = None
+    food_security: float | None = None
+    food_diversity: float | None = None
+    agriculture_efficiency: float | None = None
+    agriculture_development: float | None = None
 
     @staticmethod
     @override

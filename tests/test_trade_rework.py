@@ -1,29 +1,29 @@
-from functions.basic_in_move_functions import BasicInMoveFunctions
-from functions.trade_models import ForexFeatures, TradeModels
+from functions.income_models import simple_stability_income_boost
+from functions.trade_models import ForexFeatures, forex_course, trade_income
 
 
 def _base_forex_features(**overrides) -> ForexFeatures:
-    data = dict(
-        stability=80,
-        income=120.0,
-        wastes=500.0,
-        budget=1000.0,
-        trade_rank=3,
-        trade_efficiency=80.0,
-        trade_overload=60.0,
-        industry_efficiency=70.0,
-        state_apparatus_efficiency=60,
-        contentment=75,
-        poor_level=4.0,
-        jobless_level=7.0,
-        control_balance=8.0,
-    )
+    data = {
+        "stability": 80,
+        "income": 120.0,
+        "wastes": 500.0,
+        "budget": 1000.0,
+        "trade_rank": 3,
+        "trade_efficiency": 80.0,
+        "trade_overload": 60.0,
+        "industry_efficiency": 70.0,
+        "state_apparatus_efficiency": 60,
+        "contentment": 75,
+        "poor_level": 4.0,
+        "jobless_level": 7.0,
+        "control_balance": 8.0,
+    }
     data.update(overrides)
     return ForexFeatures(**data)
 
 
 def test_trade_income_does_not_crash_at_trade_potential_boundary():
-    at_capacity = BasicInMoveFunctions.calculate_trade_income(
+    at_capacity = trade_income(
         trade_potential=20,
         trade_usage=20,
         trade_efficiency=80,
@@ -34,7 +34,7 @@ def test_trade_income_does_not_crash_at_trade_potential_boundary():
         forex=2.5,
         valgery=10,
     )
-    slightly_over = BasicInMoveFunctions.calculate_trade_income(
+    slightly_over = trade_income(
         trade_potential=20,
         trade_usage=21,
         trade_efficiency=80,
@@ -52,7 +52,7 @@ def test_trade_income_does_not_crash_at_trade_potential_boundary():
 
 
 def test_trade_income_is_never_negative_even_with_extreme_wastes():
-    income = BasicInMoveFunctions.calculate_trade_income(
+    income = trade_income(
         trade_potential=10,
         trade_usage=20,
         trade_efficiency=10,
@@ -68,10 +68,8 @@ def test_trade_income_is_never_negative_even_with_extreme_wastes():
 
 
 def test_forex_model_does_not_collapse_to_one_on_large_budget_scale():
-    medium = TradeModels.calculate_forex_course(
-        _base_forex_features(budget=2_000.0, income=250.0)
-    )
-    large = TradeModels.calculate_forex_course(
+    medium = forex_course(_base_forex_features(budget=2_000.0, income=250.0))
+    large = forex_course(
         _base_forex_features(budget=100_000.0, income=10_000.0)
     )
 
@@ -81,7 +79,7 @@ def test_forex_model_does_not_collapse_to_one_on_large_budget_scale():
 
 
 def test_forex_improves_when_macro_conditions_improve():
-    weak = TradeModels.calculate_forex_course(
+    weak = forex_course(
         _base_forex_features(
             stability=45,
             trade_efficiency=40,
@@ -94,7 +92,7 @@ def test_forex_improves_when_macro_conditions_improve():
             wastes=900,
         )
     )
-    strong = TradeModels.calculate_forex_course(
+    strong = forex_course(
         _base_forex_features(
             stability=90,
             trade_efficiency=85,
@@ -112,9 +110,9 @@ def test_forex_improves_when_macro_conditions_improve():
 
 
 def test_money_income_simple_boost_has_no_drop_at_100_stability():
-    boost_99 = BasicInMoveFunctions.calculate_money_income_simple_boost(99)
-    boost_100 = BasicInMoveFunctions.calculate_money_income_simple_boost(100)
-    boost_120 = BasicInMoveFunctions.calculate_money_income_simple_boost(120)
+    boost_99 = simple_stability_income_boost(99)
+    boost_100 = simple_stability_income_boost(100)
+    boost_120 = simple_stability_income_boost(120)
 
     assert boost_100 >= boost_99
     assert boost_120 == boost_100

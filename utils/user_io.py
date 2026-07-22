@@ -14,24 +14,23 @@ Keep this intentionally small; add methods only when the engine needs them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Deque, Optional, Protocol
 from collections import deque
+from dataclasses import dataclass, field
+from typing import Protocol
 
 
 class UserIO(Protocol):
     """Minimal I/O surface used by the core engine."""
 
-    def print(self, message: str) -> None:
-        ...
+    def print(self, message: str) -> None: ...
 
-    def ask_bool(self, prompt: str, default: Optional[bool] = None) -> bool:
-        ...
+    def ask_bool(self, prompt: str, default: bool | None = None) -> bool: ...
 
-    def ask_float(self, prompt: str, default: Optional[float] = None) -> float:
-        ...
+    def ask_float(
+        self, prompt: str, default: float | None = None
+    ) -> float: ...
 
-    def request_credit(self, deficit: float) -> Optional[float]:
+    def request_credit(self, deficit: float) -> float | None:
         """Ask the player whether they want a credit.
 
         Returns:
@@ -48,7 +47,7 @@ class ConsoleIO:
     def print(self, message: str) -> None:
         print(message)
 
-    def ask_bool(self, prompt: str, default: Optional[bool] = None) -> bool:
+    def ask_bool(self, prompt: str, default: bool | None = None) -> bool:
         while True:
             raw = input(prompt).strip().lower()
             if not raw and default is not None:
@@ -59,7 +58,7 @@ class ConsoleIO:
                 return False
             self.print("Введите 1/0 (да/нет)")
 
-    def ask_float(self, prompt: str, default: Optional[float] = None) -> float:
+    def ask_float(self, prompt: str, default: float | None = None) -> float:
         while True:
             raw = input(prompt).strip()
             if not raw and default is not None:
@@ -69,10 +68,12 @@ class ConsoleIO:
             except ValueError:
                 self.print("Введите число")
 
-    def request_credit(self, deficit: float) -> Optional[float]:
+    def request_credit(self, deficit: float) -> float | None:
         self.print(f"У меня нет денег - не хватает {deficit}")
         try:
-            take_credit = self.ask_bool("Взять кредит? 1, если да, 0 - если нет\n", default=False)
+            take_credit = self.ask_bool(
+                "Взять кредит? 1, если да, 0 - если нет\n", default=False
+            )
         except (KeyboardInterrupt, EOFError):
             return None
 
@@ -80,7 +81,9 @@ class ConsoleIO:
             return None
 
         try:
-            return self.ask_float("Введите сумму, которая в итоге будет в казне - ")
+            return self.ask_float(
+                "Введите сумму, которая в итоге будет в казне - "
+            )
         except (KeyboardInterrupt, EOFError):
             return None
 
@@ -95,7 +98,7 @@ class TestIO:
 
     __test__ = False  # prevent pytest from collecting as a test class
 
-    inputs: Deque[object] = field(default_factory=deque)
+    inputs: deque[object] = field(default_factory=deque)
     printed: list[str] = field(default_factory=list)
 
     def __post_init__(self):
@@ -111,7 +114,7 @@ class TestIO:
             raise RuntimeError("TestIO: no more scripted inputs")
         return self.inputs.popleft()
 
-    def ask_bool(self, prompt: str, default: Optional[bool] = None) -> bool:
+    def ask_bool(self, prompt: str, default: bool | None = None) -> bool:
         v = self._pop()
         if isinstance(v, bool):
             return v
@@ -122,7 +125,7 @@ class TestIO:
             return default
         return s in {"1", "y", "yes", "да", "true", "t"}
 
-    def ask_float(self, prompt: str, default: Optional[float] = None) -> float:
+    def ask_float(self, prompt: str, default: float | None = None) -> float:
         v = self._pop()
         if isinstance(v, (int, float)):
             return float(v)
@@ -131,7 +134,7 @@ class TestIO:
             return float(default)
         return float(s.replace(",", "."))
 
-    def request_credit(self, deficit: float) -> Optional[float]:
+    def request_credit(self, deficit: float) -> float | None:
         # Expect: bool (take credit?) then final budget
         take = self.ask_bool("", default=False)
         if not take:

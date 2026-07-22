@@ -1,14 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, Any, Dict
+from typing import Any, get_origin
 
 import pydantic
 
-from stats.pretty import parse_pretty_text, render_pretty, PrettyLayoutSpec
+from stats.pretty import PrettyLayoutSpec, parse_pretty_text, render_pretty
 from utils.input_parsers import InputParser
 
 
 class StatsBase(pydantic.BaseModel, ABC):
-
     def model_post_init(self, __context) -> None:
         self.recalculate_derived_fields()
 
@@ -27,58 +26,47 @@ class StatsBase(pydantic.BaseModel, ABC):
 
     @staticmethod
     @abstractmethod
-    def _get_field_groups():
-        raise NotImplementedError()
-
-    @staticmethod
-    @abstractmethod
-    def _get_field_names():
-        raise NotImplementedError()
-
-    @staticmethod
-    @abstractmethod
     def _get_pretty_layout() -> PrettyLayoutSpec:
         raise NotImplementedError()
 
     @staticmethod
-    def _get_default_values() -> Dict:
+    def _get_default_values() -> dict:
         return {}
 
     @classmethod
-    def from_user_input(cls,
-                        greeting_text: Optional[str] = None) -> 'StatsBase':
+    def from_user_input(cls, greeting_text: str | None = None) -> "StatsBase":
         if greeting_text:
             print(greeting_text)
 
         fields = cls.model_fields
         data = {}
+        labels: dict[str, list[str]] = {}
+        for spec in cls._get_pretty_layout().fields.values():
+            if spec.field_name is not None and not spec.read_only:
+                labels.setdefault(spec.field_name, []).append(spec.label)
 
-        field_groups = cls._get_field_groups()
-        field_names = cls._get_field_names()
-
-        for group_name, field_list in field_groups.items():
-            print(f"\n--- {group_name} ---")
-            for field_name in field_list:
-                if field_name in fields:
-                    field_info = fields[field_name]
-                    prompt = field_names.get(field_name, field_name)
-
-                    if field_info.annotation == int:
-                        data[field_name] = InputParser.input_int(prompt,
-                                                                 field_info)
-                    elif field_info.annotation == float:
-                        data[field_name] = InputParser.input_float(prompt,
-                                                                   field_info)
-                    elif field_info.annotation == List[float]:
-                        data[field_name] = InputParser.input_float_list(prompt)
-                    else:
-                        data[field_name] = input(f'{prompt}: ')
+        for field_name, field_info in fields.items():
+            if not field_info.is_required():
+                continue
+            prompt = " / ".join(dict.fromkeys(labels.get(field_name, [])))
+            prompt = prompt or field_name
+            if field_info.annotation is int:
+                data[field_name] = InputParser.input_int(prompt, field_info)
+            elif field_info.annotation is float:
+                data[field_name] = InputParser.input_float(prompt, field_info)
+            elif get_origin(field_info.annotation) is list or (
+                field_info.annotation is list
+            ):
+                data[field_name] = InputParser.input_float_list(prompt)
+            else:
+                data[field_name] = input(f"{prompt}: ")
 
         return cls(**data)
 
     @classmethod
-    def from_stats_text(cls, data: str,
-                        defaults: Dict[str, Any] = None) -> 'StatsBase':
+    def from_stats_text(
+        cls, data: str, defaults: dict[str, Any] = None
+    ) -> "StatsBase":
         merged_defaults = cls._get_default_values().copy()
         if defaults:
             merged_defaults.update(defaults)

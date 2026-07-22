@@ -2,33 +2,65 @@ from __future__ import annotations
 
 import random
 
-from stats.basic_stats import EconomyStats
 from stats.atterium_stats import AtteriumEconomyStats
+from stats.basic_stats import EconomyStats
 from stats.isf_stats import IsfEconomyStats
-from stats.schemas.economy_schema import build_field_names
-
+from stats.pretty import PrettyLayoutSpec, PrettyLineSpec, field
+from stats.stats_base import StatsBase
 from tests.factories import (
-    make_basic_bundle,
     make_atterium_bundle,
-    make_isf_bundle
+    make_basic_bundle,
+    make_isf_bundle,
 )
+from utils.input_parsers import InputParser
 
 
-def test_economy_schema_builders_match_class_methods():
-    assert EconomyStats._get_field_names() == build_field_names("basic")
-    assert AtteriumEconomyStats._get_field_names() == build_field_names("atterium")
-    assert IsfEconomyStats._get_field_names() == build_field_names("isf")
+class CreatorSample(StatsBase):
+    count: int
+    ratio: float
+    values: list[float]
 
+    @staticmethod
+    def _get_pretty_layout() -> PrettyLayoutSpec:
+        return PrettyLayoutSpec(
+            fields={
+                "count": field("count", "Количество"),
+                "ratio": field("ratio", "Доля"),
+                "values": field("values", "Значения"),
+            },
+            lines=(PrettyLineSpec(fields=("count", "ratio", "values")),),
+        )
+
+
+def test_economy_modes_have_pretty_layouts():
     assert EconomyStats._get_pretty_layout() is not None
     assert AtteriumEconomyStats._get_pretty_layout() is not None
     assert IsfEconomyStats._get_pretty_layout() is not None
 
 
-def test_common_schema_keys_are_shared_across_modes():
-    # A couple of keys that must be identical across all economy variants
-    for key in ["population_count", "decrement_coefficient", "inflation", "trade_rank"]:
-        assert build_field_names("basic")[key] == build_field_names("atterium")[key]
-        assert build_field_names("basic")[key] == build_field_names("isf")[key]
+def test_creator_uses_model_types_and_pretty_labels(monkeypatch):
+    prompts = []
+
+    def read_int(prompt, _field_info):
+        prompts.append(prompt)
+        return 7
+
+    def read_float(prompt, _field_info):
+        prompts.append(prompt)
+        return 2.5
+
+    def read_float_list(prompt):
+        prompts.append(prompt)
+        return [1.0, 2.0]
+
+    monkeypatch.setattr(InputParser, "input_int", read_int)
+    monkeypatch.setattr(InputParser, "input_float", read_float)
+    monkeypatch.setattr(InputParser, "input_float_list", read_float_list)
+
+    parsed = CreatorSample.from_user_input()
+
+    assert parsed == CreatorSample(count=7, ratio=2.5, values=[1.0, 2.0])
+    assert prompts == ["Количество", "Доля", "Значения"]
 
 
 def test_basic_economy_parses_from_its_own_rendered_string_roundtrip():

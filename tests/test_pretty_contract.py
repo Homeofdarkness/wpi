@@ -1,4 +1,4 @@
-from stats.basic_stats import EconomyStats, AgricultureStats
+from stats.basic_stats import AgricultureStats, EconomyStats
 
 
 def test_economy_pretty_contains_section_titles():

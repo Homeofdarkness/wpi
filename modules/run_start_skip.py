@@ -1,308 +1,251 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from enum import StrEnum
-from typing import Optional, Dict, Type, TypeVar, Generic
+"""Console input workflows for constructing a world state."""
 
-from stats.atterium_stats import (
-    AtteriumEconomyStats,
-    AtteriumIndustrialStats,
-    AtteriumAgricultureStats,
-    AtteriumInnerPoliticsStats
-)
-from stats.basic_stats import (
-    EconomyStats,
-    IndustrialStats,
-    AgricultureStats,
-    InnerPoliticsStats
-)
-from stats.isf_stats import (
-    IsfEconomyStats,
-    IsfIndustrialStats,
-    IsfAgricultureStats,
-    IsfInnerPoliticsStats
-)
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import StrEnum
+
+from modules.skip_move_types import WorldState
+from stats.industry_text import CONFIG_END, CONFIG_START
 from stats.stats_base import StatsBase
 from utils.input_parsers import InputParser
-from utils.logger_manager import get_logger
 
 
-logger = get_logger("Run Start Skip Move")
-
-# Type variables for generic typing
-T_Economy = TypeVar('T_Economy', bound=StatsBase)
-T_Industry = TypeVar('T_Industry', bound=StatsBase)
-T_Agriculture = TypeVar('T_Agriculture', bound=StatsBase)
-T_InnerPolitics = TypeVar('T_InnerPolitics', bound=StatsBase)
+class InputMode(StrEnum):
+    COUNTRY_CREATOR = "country_creator"
+    MOVES_SKIPPER = "moves_skipper"
 
 
-class GameModes(StrEnum):
-    """Режимы игры с более понятными названиями"""
-    COUNTRY_CREATOR = 'country_creator'
-    MOVES_SKIPPER = 'moves_skipper'
-
-
-@dataclass
+@dataclass(frozen=True)
 class StatsConfig:
-    """Конфигурация для создания статистик"""
-    economy_class: Type[StatsBase]
-    industry_class: Type[StatsBase]
-    agriculture_class: Type[StatsBase]
-    inner_politics_class: Type[StatsBase]
+    economy_class: type[StatsBase]
+    industry_class: type[StatsBase]
+    agriculture_class: type[StatsBase]
+    inner_politics_class: type[StatsBase]
 
 
-@dataclass
-class GameStats:
-    """Container for all stats."""
-    Economy: StatsBase
-    Industry: StatsBase
-    Agriculture: StatsBase
-    InnerPolitics: StatsBase
+SKIPPER_SECTIONS = {
+    "economy": "=== ЭКОНОМИКА И ТОРГОВЛЯ ===",
+    "industry": "=== ПРОМЫШЛЕННОСТЬ ===",
+    "industry_configuration": "=== НАСТРОЙКИ ПРОМЫШЛЕННОСТИ ===",
+    "agriculture": "=== СЕЛЬСКОЕ ХОЗЯЙСТВО ===",
+    "government": "=== ГОСУДАРСТВО, КОНТРОЛЬ И НАРОД ===",
+}
+
+CREATOR_HEADERS = {
+    "economy": "=== ВВОД ДАННЫХ ЭКОНОМИКИ ===",
+    "industry": "=== ВВОД ДАННЫХ ПРОМЫШЛЕННОСТИ ===",
+    "agriculture": "=== ВВОД ДАННЫХ СЕЛЬСКОГО ХОЗЯЙСТВА ===",
+    "inner_politics": "=== ВВОД ДАННЫХ ВНУТРЕННЕЙ ПОЛИТИКИ ===",
+}
+
+_INDUSTRY_CONFIGURATION_UNSET = object()
 
 
-class InputSection:
-    """Класс для управления секциями ввода данных"""
+def _skipper_section_is_complete(section: str, text: str) -> bool:
+    """Recognize the last meaningful part of an unfenced current block."""
+    if section == "economy":
+        return "ТОРГОВЛЯ" in text and any(
+            "Филиалы -" in line and "Доход -" in line
+            for line in text.splitlines()
+        )
+    if section == "industry":
+        _, marker, resource_state = text.partition("СОСТОЯНИЕ РЕСУРСОВ")
+        if not marker:
+            return False
+        return "Нет данных" in resource_state or any(
+            "|" in line and "[" in line and "]" in line
+            for line in resource_state.splitlines()
+        )
+    if section == "agriculture":
+        return "Запасы пищи -" in text
+    if section == "government":
+        return "НАРОД" in text and "Отхождение от истин" in text
+    return False
 
-    # Константы для секций ввода
-    ECONOMY = "=== ЭКОНОМИКА ==="
-    TRADE = "=== ТОРГОВЛЯ ==="
-    INDUSTRY = "=== ПРОМЫШЛЕННОСТЬ ==="
-    AGRICULTURE = "=== СЕЛЬСКОЕ ХОЗЯЙСТВО ==="
-    GOVERNMENT = "=== ГОСУДАРСТВО ==="
-    PEOPLE = "=== НАРОД ==="
 
-    # Заголовки для режима создателя
-    CREATOR_HEADERS = {
-        'economy': "=== ВВОД ДАННЫХ ЭКОНОМИКИ ===",
-        'industry': "=== ВВОД ДАННЫХ ПРОМЫШЛЕННОСТИ ===",
-        'agriculture': "=== ВВОД ДАННЫХ СЕЛЬСКОГО ХОЗЯЙСТВА ===",
-        'inner_politics': "=== ВВОД ДАННЫХ ВНУТРЕННЕЙ ПОЛИТИКИ ==="
-    }
-
-
-class ModeSelector:
-    """Класс для выбора режима игры"""
-
-    @staticmethod
-    def display_available_modes() -> None:
-        """Отображает доступные режимы"""
-        print("Доступные режимы:")
-        for i, mode in enumerate(GameModes, 1):
-            print(f"{i}. {mode.value}")
-
-    @staticmethod
-    def get_mode_by_number(choice: str) -> Optional[GameModes]:
-        """Получает режим по номеру"""
-        if not choice.isdigit():
-            return None
-
-        index = int(choice) - 1
-        modes_list = list(GameModes)
-
-        if 0 <= index < len(modes_list):
-            return modes_list[index]
-
-        print(f"Номер должен быть от 1 до {len(modes_list)}")
-        return None
-
-    @staticmethod
-    def get_mode_by_name(choice: str) -> Optional[GameModes]:
-        """Получает режим по названию"""
-        try:
-            return GameModes(choice.lower())
-        except ValueError:
-            print(f"Неверный ввод '{choice}'. Попробуйте снова.")
-            return None
-
-    @classmethod
-    def select_mode(cls) -> GameModes:
-        """Интерактивный выбор режима"""
-        cls.display_available_modes()
-
-        while True:
+def select_input_mode() -> InputMode:
+    modes = list(InputMode)
+    print("Доступные способы ввода:")
+    for number, mode in enumerate(modes, 1):
+        print(f"{number}. {mode.value}")
+    while True:
+        choice = input("Выберите способ ввода (название или номер): ").strip()
+        if choice.isdigit():
+            index = int(choice) - 1
+            if 0 <= index < len(modes):
+                return modes[index]
+        else:
             try:
-                choice = input(
-                    "Выберите режим (введите название или номер): ").strip()
-
-                if not choice:
-                    print("Пустой ввод. Попробуйте снова.")
-                    continue
-
-                # Попытка получить режим по номеру
-                mode = cls.get_mode_by_number(choice)
-                if mode is not None:
-                    return mode
-
-                # Попытка получить режим по названию
-                mode = cls.get_mode_by_name(choice)
-                if mode is not None:
-                    return mode
-
-            except KeyboardInterrupt:
-                print("\nОтмена выбора режима.")
-                raise
-            except Exception as e:
-                logger.error(f"Ошибка при выборе режима: {e}")
-                print("Произошла ошибка. Попробуйте снова.")
+                return InputMode(choice.lower())
+            except ValueError:
+                pass
+        print("Неизвестный способ ввода. Попробуйте снова.")
 
 
-class DataInputHandler:
-    """Обработчик ввода данных с различными стратегиями"""
+def read_text_section(
+    title: str,
+    *,
+    terminator: str | None = None,
+    completion_check: Callable[[str], bool] | None = None,
+) -> str:
+    """Read one legacy section or one complete fenced pretty block.
+
+    A Markdown fence switches the reader to fence-aware mode.  For unfenced
+    current output, a blank line terminates only a complete section; internal
+    blanks are preserved.  Two consecutive blanks remain a fallback for old
+    incomplete formats.  Configuration may provide an explicit terminator.
+    """
+    print(title)
+    lines: list[str] = []
+    inside_fence = False
+    while True:
+        line = input()
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            lines.append(line)
+            if inside_fence:
+                return "\n".join(lines)
+            inside_fence = True
+            continue
+
+        if (
+            terminator is not None
+            and stripped == terminator
+            and not inside_fence
+        ):
+            lines.append(line)
+            return "\n".join(lines)
+        if not stripped and not inside_fence:
+            if not lines:
+                return ""
+            if terminator is not None:
+                lines.append("")
+                continue
+            current = "\n".join(lines).rstrip()
+            if completion_check is None or completion_check(current):
+                return current
+            if lines[-1] == "":
+                return current
+            lines.append("")
+            continue
+
+        lines.append(line)
+
+
+@dataclass
+class StatsInput:
+    config: StatsConfig
+    mode: InputMode | None = None
+    industry_configuration: str | None | object = _INDUSTRY_CONFIGURATION_UNSET
+
+    def read(self) -> WorldState:
+        mode = self.mode or select_input_mode()
+        if mode is InputMode.COUNTRY_CREATOR:
+            return self._read_creator()
+        return self._read_skipper()
+
+    # Compatibility with the previous public entry point.
+    def parse_user_input_data(self) -> WorldState:
+        return self.read()
+
+    def _read_creator(self) -> WorldState:
+        economy = self.config.economy_class.from_user_input(
+            CREATOR_HEADERS["economy"]
+        )
+        industry = self.config.industry_class.from_user_input(
+            CREATOR_HEADERS["industry"]
+        )
+        configuration = self.industry_configuration
+        if configuration is _INDUSTRY_CONFIGURATION_UNSET:
+            configuration = self._read_creator_industry_configuration()
+        if configuration:
+            industry = self.config.industry_class.from_stats_text(
+                f"{industry.render_pretty()}\n"
+                f"{self._normalize_industry_configuration(configuration)}"
+            )
+        return WorldState(
+            economy=economy,
+            industry=industry,
+            agriculture=self.config.agriculture_class.from_user_input(
+                CREATOR_HEADERS["agriculture"]
+            ),
+            inner_politics=self.config.inner_politics_class.from_user_input(
+                CREATOR_HEADERS["inner_politics"]
+            ),
+        )
 
     @staticmethod
-    def get_section_data(section_name: str) -> str:
-        """Получает данные для секции с обработкой ошибок"""
-        print(section_name)
-        try:
-            return InputParser.parse_data_from_str()
-        except Exception as e:
-            logger.error(
-                f"Ошибка при парсинге данных секции {section_name}: {e}")
-            raise ValueError(
-                f"Не удалось получить данные для секции {section_name}")
+    def _normalize_industry_configuration(configuration: str) -> str:
+        text = "\n".join(
+            line.strip()
+            for line in configuration.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        )
+        if not text:
+            return ""
+        if CONFIG_START not in text:
+            text = f"{CONFIG_START}\n{text}"
+        if CONFIG_END not in text:
+            text = f"{text}\n{CONFIG_END}"
+        return text
 
-    @classmethod
-    def collect_skipper_sections(cls) -> Dict[str, str]:
-        """Собирает все секции для режима skipper"""
+    @staticmethod
+    def _read_creator_industry_configuration() -> str | None:
+        print("=== РЕСУРСЫ И ДОБЫЧА ===")
+        print(
+            "Вставьте промышленный блок из input-файла. "
+            "Пустая первая строка оставит промышленность без ресурсов."
+        )
+        configuration = InputParser.parse_data_from_str().strip()
+        return configuration or None
+
+    def _read_skipper(self) -> WorldState:
+        print(
+            "Блок можно вставлять с рамкой ```...``` или без неё. "
+            "Внутренние пустые строки сохраняются; после последней "
+            "строки блока нажмите Enter."
+        )
         sections = {}
-        try:
-            sections['economy'] = cls.get_section_data(InputSection.ECONOMY)
-            sections['trade'] = cls.get_section_data(InputSection.TRADE)
-            sections['industry'] = cls.get_section_data(InputSection.INDUSTRY)
-            sections['agriculture'] = cls.get_section_data(
-                InputSection.AGRICULTURE)
-            sections['government'] = cls.get_section_data(
-                InputSection.GOVERNMENT)
-            sections['people'] = cls.get_section_data(InputSection.PEOPLE)
-            return sections
-        except Exception as e:
-            logger.error(f"Ошибка при сборе секций: {e}")
-            raise
-
-
-@dataclass
-class StartSkipMoveBase(ABC, Generic[
-    T_Economy, T_Industry, T_Agriculture, T_InnerPolitics]):
-    """Базовый абстрактный класс для инициализации игры"""
-    mode: Optional[GameModes] = field(default=None, init=False)
-
-    def __post_init__(self):
-        self._stats_config = self.get_stats_config()
-
-    @abstractmethod
-    def get_stats_config(self) -> StatsConfig:
-        """Возвращает конфигурацию классов статистик"""
-        pass
-
-    def set_mode(self) -> GameModes:
-        """Устанавливает режим игры"""
-        if self.mode is None:
-            self.mode = ModeSelector.select_mode()
-        return self.mode
-
-    def parse_user_input_data(self) -> GameStats:
-        """Парсит пользовательский ввод в зависимости от режима"""
-        try:
-            self.mode = self.set_mode()
-
-            match self.mode:
-                case GameModes.COUNTRY_CREATOR:
-                    return self._parse_creator_mode_input()
-                case GameModes.MOVES_SKIPPER:
-                    return self._parse_skipper_mode_input()
-                case _:
-                    raise ValueError(f"Неподдерживаемый режим: {self.mode}")
-
-        except KeyboardInterrupt:
-            logger.info("Операция отменена пользователем")
-            raise
-        except Exception as e:
-            logger.error(f"Ошибка при парсинге пользовательского ввода: {e}")
-            raise
-
-    def _parse_creator_mode_input(self) -> GameStats:
-        """Парсит ввод в режиме создателя"""
-        try:
-            stats_data = {}
-            config = self._stats_config
-
-            # Создаем статистики через пользовательский ввод
-            stats_data['Economy'] = config.economy_class.from_user_input(
-                InputSection.CREATOR_HEADERS['economy'])
-
-            stats_data['Industry'] = config.industry_class.from_user_input(
-                InputSection.CREATOR_HEADERS['industry'])
-
-            stats_data[
-                'Agriculture'] = config.agriculture_class.from_user_input(
-                InputSection.CREATOR_HEADERS['agriculture'])
-
-            stats_data[
-                'InnerPolitics'] = config.inner_politics_class.from_user_input(
-                InputSection.CREATOR_HEADERS['inner_politics'])
-
-            return GameStats(**stats_data)
-
-        except Exception as e:
-            logger.error(f"Ошибка в режиме создателя: {e}")
+        for name, title in SKIPPER_SECTIONS.items():
+            terminator = (
+                CONFIG_END if name == "industry_configuration" else None
+            )
+            sections[name] = read_text_section(
+                title,
+                terminator=terminator,
+                completion_check=(
+                    None
+                    if name == "industry_configuration"
+                    else lambda text, section=name: (
+                        _skipper_section_is_complete(section, text)
+                    )
+                ),
+            )
+        industry_configuration = sections["industry_configuration"].strip()
+        if not industry_configuration:
             raise ValueError(
-                f"Не удалось создать статистики в режиме создателя: {e}")
-
-    def _parse_skipper_mode_input(self) -> GameStats:
-        """Парсит ввод в режиме пропуска ходов"""
-        try:
-            # Собираем данные всех секций
-            sections = DataInputHandler.collect_skipper_sections()
-            config = self._stats_config
-
-            # Создаем статистики из текста
-            stats_data = {}
-
-            # Экономика (экономика + торговля)
-            economy_text = f"{sections['economy']}\n{sections['trade']}"
-            stats_data['Economy'] = config.economy_class.from_stats_text(
-                economy_text)
-
-            # Промышленность
-            stats_data['Industry'] = config.industry_class.from_stats_text(
-                sections['industry'])
-
-            # Сельское хозяйство
-            stats_data[
-                'Agriculture'] = config.agriculture_class.from_stats_text(
-                sections['agriculture'])
-
-            # Внутренняя политика (государство + народ)
-            politics_text = f"{sections['government']}\n{sections['people']}"
-            stats_data[
-                'InnerPolitics'] = config.inner_politics_class.from_stats_text(
-                politics_text)
-
-            return GameStats(**stats_data)
-
-        except Exception as e:
-            logger.error(f"Ошибка в режиме пропуска ходов: {e}")
-            raise ValueError(
-                f"Не удалось создать статистики в режиме пропуска ходов: {e}")
+                "Не вставлены отдельные настройки промышленности. "
+                "Используйте файл *_industry_settings.txt"
+            )
+        return WorldState(
+            economy=self.config.economy_class.from_stats_text(
+                sections["economy"]
+            ),
+            industry=self.config.industry_class.from_stats_text(
+                f"{sections['industry']}\n"
+                f"{self._normalize_industry_configuration(industry_configuration)}"
+            ),
+            agriculture=self.config.agriculture_class.from_stats_text(
+                sections["agriculture"]
+            ),
+            inner_politics=self.config.inner_politics_class.from_stats_text(
+                sections["government"]
+            ),
+        )
 
 
-@dataclass
-class ConfiguredStartSkipMove(StartSkipMoveBase[StatsBase, StatsBase, StatsBase, StatsBase]):
-    """Start-skip implementation configured with a :class:`StatsConfig`.
-
-    This removes the need for separate Basic/Atterium/Isf classes that differed
-    only by which Stats classes they used.
-    """
-
-    stats_config: StatsConfig
-
-    def get_stats_config(self) -> StatsConfig:
-        return self.stats_config
-
-
-# Backwards-compatible aliases (optional):
-# If you previously imported BasicStartSkipMove/AtteriumStartSkipMove/IsfStartSkipMove,
-# they are now simple constructors around ConfiguredStartSkipMove.
-
-def make_start_skip_move(config: StatsConfig) -> ConfiguredStartSkipMove:
-    """Factory helper to build a configured start-skip engine."""
-    return ConfiguredStartSkipMove(stats_config=config)
+def make_start_skip_move(config: StatsConfig) -> StatsInput:
+    return StatsInput(config=config)

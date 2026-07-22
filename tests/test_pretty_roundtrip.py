@@ -1,11 +1,20 @@
+# ruff: noqa: E501
+
 from __future__ import annotations
 
 import random
 
-from stats.basic_stats import EconomyStats, IndustrialStats, AgricultureStats, \
-    InnerPoliticsStats
-from tests.factories import make_basic_bundle, make_atterium_bundle, \
-    make_isf_bundle
+from stats.basic_stats import (
+    AgricultureStats,
+    EconomyStats,
+    IndustrialStats,
+    InnerPoliticsStats,
+)
+from tests.factories import (
+    make_atterium_bundle,
+    make_basic_bundle,
+    make_isf_bundle,
+)
 
 
 def test_basic_economy_roundtrip_from_pretty():
@@ -33,9 +42,11 @@ def test_basic_industry_roundtrip_from_pretty():
     assert parsed.processing_production == industry.processing_production
     assert parsed.processing_usage == industry.processing_usage
     assert parsed.processing_efficiency == industry.processing_efficiency
-    assert parsed.usages[:len(industry.usages)] == industry.usages
+    assert parsed.usages[: len(industry.usages)] == industry.usages
     assert parsed.logistic == industry.logistic
-    assert parsed.war_production_efficiency == industry.war_production_efficiency
+    assert (
+        parsed.war_production_efficiency == industry.war_production_efficiency
+    )
 
 
 def test_basic_agriculture_roundtrip_from_pretty():
@@ -68,7 +79,7 @@ def test_basic_inner_politics_roundtrip_from_pretty():
     assert parsed.departure_from_truths == inner.departure_from_truths
 
 
-def test_legacy_basic_economy_spacing_without_spaces_before_dash_is_still_parsed():
+def test_legacy_economy_spacing_without_spaces_before_dash_is_parsed():
     text = """Население-13828502                  УНЧС - 0                        Прирост-202322
 Казна- --89.0 (0.0)               Экономическая стабильность - 92%                Инфляция - 14.0%
 ДОХОДЫ - + 3361.377 ед.вал в ход
