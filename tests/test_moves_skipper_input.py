@@ -93,3 +93,10 @@ def test_moves_skipper_reads_current_pretty_output_and_runs_rules(
     assert state.industry.last_extracted[ResourceType.IRON] > 0
     assert len(state.industry.last_production) == 2
     assert state.industry.production_rules[0].turns_remaining == 5
+    assert {effect.target for effect in state.industry.last_effects} >= {
+        "logistic",
+        "trade_efficiency",
+        "contentment",
+        "food_diversity",
+        "population_epidemic_chance",
+    }

@@ -21,7 +21,7 @@ from stats.industry_components import (
     RESOURCE_CATALOG,
     ExtractionGroup,
     ExtractionOperation,
-    ResourceKind,
+    ResourceRegistration,
     ResourceState,
     ResourceType,
 )
@@ -97,10 +97,17 @@ def test_resource_catalog_has_every_approved_resource():
     assert len(ResourceType) == 37
     assert set(RESOURCE_CATALOG) == set(ResourceType)
     assert ResourceType.SILVER is not ResourceType.COPPER
-    assert RESOURCE_CATALOG[ResourceType.SLAG].kind is ResourceKind.BYPRODUCT
     assert RESOURCE_CATALOG[ResourceType.CORE_CRYSTAL].group is (
         ExtractionGroup.UNIQUE
     )
+    custom = ResourceRegistration(
+        resource=ResourceType("reinforced_glass"),
+        name="Армированное стекло",
+        group=ExtractionGroup.CONSTRUCTION,
+        storage_capacity=100,
+    )
+    assert custom.resource.value == "reinforced_glass"
+    assert custom.resource not in RESOURCE_CATALOG
     assert set(GROUP_PROFILES) == set(ExtractionGroup)
     assert (
         GROUP_PROFILES[ExtractionGroup.PLANTATIONS].labor_weight

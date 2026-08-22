@@ -40,7 +40,15 @@ from modules.skip_move_types import (
     TurnLedger,
     WorldState,
 )
-from stats.industry_components import ResourceKind
+from stats.industry_effects import (
+    EffectPhase,
+    IndustrialEffect,
+    IndustrialEffectResult,
+    ResolvedEffectTarget,
+    SpecialEffectTarget,
+    evaluate_effect_formula,
+    resolve_effect_target,
+)
 from utils.logger_manager import get_logger
 from utils.user_io import ConsoleIO, UserIO
 
@@ -59,17 +67,24 @@ class TurnEngine:
     waste: float = 0.0
     rng: Generator = field(default_factory=np.random.default_rng)
     last_report: SkipMoveReport | None = field(default=None, init=False)
+    resource_effect_wastes: float = field(default=0.0, init=False)
+    _effect_bindings: list[tuple[IndustrialEffect, ResolvedEffectTarget]] = (
+        field(default_factory=list, init=False)
+    )
 
     def _ctx(self) -> SkipMoveContext:
         return SkipMoveContext(state=self.state, waste=self.waste)
 
     def run(self) -> SkipMoveReport:
+        self._effect_bindings = self._resolve_industrial_effect_targets()
         # API clients may reuse an engine for several turns.  Start from the
         # current primary state, not from derived values already modified by
         # the previous turn.
         self.state.economy.recalculate_derived_fields()
         self.state.industry.recalculate_derived_fields()
         self.state.inner_politics.recalculate_derived_fields()
+        self.resource_effect_wastes = 0.0
+        self.state.industry.last_effects = []
         economy = self.state.economy
         budget_before = float(economy.current_budget)
         logistic_wastes = self._logistic_wastes()
@@ -78,12 +93,18 @@ class TurnEngine:
         self._calculate_operational_probabilities()
 
         self._calculate_agriculture(results)
+        self._resolve_industrial_resources()
+        self._apply_industrial_effects(EffectPhase.AFTER_RESOURCES)
         self._calculate_population(results)
         self._calculate_industry()
+        self._apply_industrial_effects(EffectPhase.AFTER_INDUSTRY)
         self._calculate_tax(results)
+        self._apply_industrial_effects(EffectPhase.AFTER_TAX)
         self._calculate_trade()
+        self._apply_industrial_effects(EffectPhase.AFTER_TRADE)
         ledger = self._calculate_income(results, logistic_wastes)
         self._calculate_event_probabilities()
+        self._apply_industrial_effects(EffectPhase.AFTER_PROBABILITIES)
 
         report = self._finalize(
             budget_before=budget_before,
@@ -121,6 +142,7 @@ class TurnEngine:
             - agriculture_state.income_from_resources
             + self._debt_interest()
             + self._forced_labor_cost()
+            + self.resource_effect_wastes
         )
 
     def _debt_interest(self) -> float:
@@ -526,15 +548,72 @@ class TurnEngine:
         )
         economy.population_count = max(0, int(population_with_growth - deaths))
 
-    def _calculate_industry(self) -> None:
-        economy = self.state.economy
-        state = self.state.industry
+    def _resolve_industrial_resources(self) -> None:
         self._advance_industrial_resources()
         self._process_production_rules()
         self._spend_industrial_resources()
+
+    def _resolve_industrial_effect_targets(
+        self,
+    ) -> list[tuple[IndustrialEffect, ResolvedEffectTarget]]:
+        bindings: list[tuple[IndustrialEffect, ResolvedEffectTarget]] = []
+        for effect in self.state.industry.effects:
+            seen: set[str] = set()
+            for target_name in effect.targets:
+                resolved = resolve_effect_target(self.state, target_name)
+                if resolved.canonical_name in seen:
+                    raise ValueError(
+                        f"Эффект {effect.id} повторно использует целевую "
+                        f"стату {resolved.canonical_name}"
+                    )
+                seen.add(resolved.canonical_name)
+                bindings.append((effect, resolved))
+        return bindings
+
+    def _apply_industrial_effects(self, phase: EffectPhase) -> None:
+        """Apply each configured delta after its target has been calculated."""
+        economy = self.state.economy
+        state = self.state.industry
+        resource_metrics, group_metrics = state.dependency_metrics()
+        for effect, target in self._effect_bindings:
+            if target.phase is not phase:
+                continue
+            if target.special is SpecialEffectTarget.INFRASTRUCTURE_EXPENSES:
+                target_before = (
+                    float(economy.gov_wastes[0]) + self.resource_effect_wastes
+                )
+            else:
+                target_before = target.current_value()
+            adjustment = evaluate_effect_formula(
+                effect,
+                target=target_before,
+                resources=resource_metrics,
+                groups=group_metrics,
+            )
+            if target.special is SpecialEffectTarget.INFRASTRUCTURE_EXPENSES:
+                target_after = max(0.0, target_before + adjustment)
+            else:
+                target_after = target.apply(target_before + adjustment)
+            applied_adjustment = target_after - target_before
+            if target.special is SpecialEffectTarget.INFRASTRUCTURE_EXPENSES:
+                self.resource_effect_wastes += applied_adjustment
+            state.last_effects.append(
+                IndustrialEffectResult(
+                    effect_id=effect.id,
+                    target=target.name,
+                    target_before=target_before,
+                    adjustment=applied_adjustment,
+                    target_after=target_after,
+                )
+            )
+
+    def _calculate_industry(self) -> None:
+        economy = self.state.economy
+        state = self.state.industry
         # Resource coverage changes civil security.  Refresh its dependent
         # efficiency and cost fields before trade and income use them.
         state.recalculate_derived_fields()
+        self._apply_industrial_effects(EffectPhase.INDUSTRY_DERIVED)
         state.consumption_of_goods = industry.consumption_of_goods(
             economy.population_count,
             economy.trade_usage,
@@ -649,8 +728,6 @@ class TurnEngine:
             resource_state
             for resource_state in candidates
             if resource_state.enabled
-            and resource_state.definition.kind
-            not in {ResourceKind.MANUFACTURED, ResourceKind.BYPRODUCT}
             and resource_state.stockpile < resource_state.storage_capacity
         ]
 
@@ -747,6 +824,7 @@ class TurnEngine:
             control_balance=control,
         )
         economy.forex = trade.forex_course(features)
+        self._apply_industrial_effects(EffectPhase.AFTER_FOREX)
         economy.trade_income = trade.trade_income(
             economy.trade_potential,
             economy.trade_usage,
@@ -796,6 +874,7 @@ class TurnEngine:
             science_income=science_income,
             resource_balance=float(economy.resource_balance),
             debt_interest=self._debt_interest(),
+            resource_effect_wastes=self.resource_effect_wastes,
             total_wastes=self._total_wastes(logistic_wastes),
             inflation_factor=inflation_factor(economy.inflation),
         )
@@ -897,6 +976,13 @@ class TurnEngine:
         economy.stability = round(stability_after)
         self._update_education()
         self._update_military_equipment()
+        money_income_before_effects = float(economy.money_income)
+        self._apply_industrial_effects(EffectPhase.FINALIZE)
+        money_income_adjustment = (
+            float(economy.money_income) - money_income_before_effects
+        )
+        economy.current_budget += money_income_adjustment
+        budget_after_boost = float(economy.current_budget)
         return SkipMoveReport(
             mode=self.mode_name,
             budget_before=budget_before,
@@ -910,7 +996,8 @@ class TurnEngine:
             science_income=ledger.science_income,
             resource_balance=ledger.resource_balance,
             debt_interest=ledger.debt_interest,
-            money_income=float(ledger.net_income),
+            resource_effect_wastes=ledger.resource_effect_wastes,
+            money_income=float(economy.money_income),
             budget_after_raw=float(budget_after_raw),
             stability_after=stability_after,
             income_boost=boost,

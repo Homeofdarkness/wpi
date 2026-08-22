@@ -19,6 +19,9 @@ def test_final_output_keeps_production_and_next_turn_settings(capsys):
     output = capsys.readouterr().out
     assert "Отдельный отчёт промышленности" in output
     assert "Правила производства не загружены" in output
+    assert "ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ" in output
+    assert "freshwater_population_growth:" in output
+    assert "ожидает расчёта хода" in output
     assert "Настройки промышленности для следующего хода" in output
     assert "НАСТРОЙКА ПРОМЫШЛЕННОСТИ" in output
 

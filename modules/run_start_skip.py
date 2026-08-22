@@ -179,11 +179,12 @@ class StatsInput:
 
     @staticmethod
     def _normalize_industry_configuration(configuration: str) -> str:
-        text = "\n".join(
-            line.strip()
-            for line in configuration.splitlines()
-            if line.strip() and not line.lstrip().startswith("#")
-        )
+        lines = [line.rstrip() for line in configuration.splitlines()]
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        text = "\n".join(lines)
         if not text:
             return ""
         if CONFIG_START not in text:
@@ -194,9 +195,9 @@ class StatsInput:
 
     @staticmethod
     def _read_creator_industry_configuration() -> str | None:
-        print("=== РЕСУРСЫ И ДОБЫЧА ===")
+        print("=== YAML ПРОМЫШЛЕННОСТИ ===")
         print(
-            "Вставьте промышленный блок из input-файла. "
+            "Вставьте YAML-блок ресурсов, добычи, производства и эффектов. "
             "Пустая первая строка оставит промышленность без ресурсов."
         )
         configuration = InputParser.parse_data_from_str().strip()

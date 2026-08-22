@@ -3,7 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from functions.agriculture_models import food_security_index
+from functions.agriculture_models import food_diversity, food_security_index
+from functions.society_models import food_diversity_income_factor
 from modules.run_skip_move import TurnEngine
 from modules.skip_move_types import WorldState
 from tests.factories import make_basic_bundle
@@ -33,6 +34,16 @@ def test_food_security_is_a_unitless_coverage_index(
     expected: float,
 ) -> None:
     assert food_security_index(produced, consumed) == pytest.approx(expected)
+
+
+def test_food_diversity_is_bounded_and_its_growth_effect_is_monotonic() -> (
+    None
+):
+    assert food_diversity(100, 0, 0, 10) == 0
+    assert food_diversity(40, 40, 20, 150) == 100
+    factors = [food_diversity_income_factor(value) for value in (0, 50, 100)]
+    assert factors == sorted(factors)
+    assert factors[0] > 0
 
 
 def test_food_supplies_cover_a_shortage_before_hunger() -> None:

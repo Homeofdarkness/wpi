@@ -1,39 +1,177 @@
-НАСТРОЙКА ПРОМЫШЛЕННОСТИ
-ГРУППЫ
-Группа Лесное хозяйство [forestry]
-Группа Пресная вода [fresh_water]
-Группа Цветные металлы [nonferrous]
-Группа Стратегические металлы [strategic_metals]
-Группа Чёрные металлы [ferrous]
-Группа Химическое сырьё [chemical]
-Группа Строительные материалы [construction]
-Группа Твёрдое топливо [solid_fuel]
-Группа Углеводороды [hydrocarbons]
-Группа Переработка отходов [recycling]
-РЕСУРСЫ
-Ресурс Дерево [wood] | группа=forestry | доступность=90 | качество=85 | расход=200 | склад=10000
-Ресурс Пресная вода [fresh_water] | группа=fresh_water | доступность=95 | качество=90 | расход=800 | склад=30000
-Ресурс Медь [copper] | группа=nonferrous | доступность=75 | качество=80 | расход=0 | склад=6000
-Ресурс Алюминий [aluminum] | группа=strategic_metals | доступность=78 | качество=78 | расход=0 | склад=8000
-Ресурс Железо [iron] | группа=ferrous | доступность=82 | качество=78 | расход=300 | склад=25000
-Ресурс Сера [sulfur] | группа=chemical | доступность=80 | качество=80 | расход=0 | склад=7000
-Ресурс Кремний [silicon] | группа=chemical | доступность=85 | качество=82 | расход=0 | склад=10000
-Ресурс Базовые стройматериалы [basic_building_materials] | группа=construction | доступность=100 | качество=100 | расход=250 | склад=10000
-Ресурс Дорогие стройматериалы [expensive_building_materials] | группа=construction | доступность=100 | качество=100 | расход=50 | склад=4000
-Ресурс Уголь [coal] | группа=solid_fuel | доступность=80 | качество=75 | расход=250 | склад=16000
-Ресурс Нефть [oil] | группа=hydrocarbons | доступность=75 | качество=85 | расход=400 | склад=20000
-Ресурс Газ [gas] | группа=hydrocarbons | доступность=80 | качество=88 | расход=400 | склад=25000
-Ресурс Шлак [slag] | группа=recycling | доступность=100 | качество=100 | расход=0 | склад=8000
-ДОБЫЧА
-Добыча forestry | интенсивность=70 | приоритет=1
-Добыча fresh_water | интенсивность=90 | приоритет=3
-Добыча strategic_metals | интенсивность=60 | приоритет=1
-Добыча nonferrous | интенсивность=60 | приоритет=1
-Добыча ferrous | интенсивность=85 | приоритет=2
-Добыча chemical | интенсивность=70 | приоритет=1
-Добыча solid_fuel | интенсивность=75 | приоритет=2
-Добыча hydrocarbons | интенсивность=90 | приоритет=3
-ПРАВИЛА ПРОИЗВОДСТВА
-Правило Базовые стройматериалы [basic_building_materials] | цель=ресурс[basic_building_materials] | статус=активно | партий=150 | ходов=6 | вход=iron:2,coal:1,silicon:0.5 | выход=basic_building_materials:2.5 | побочно=slag:0.4
-Правило Дорогие стройматериалы [expensive_building_materials] | цель=ресурс[expensive_building_materials] | статус=активно | партий=40 | ходов=4 | вход=basic_building_materials:2,copper:0.5,aluminum:0.5 | выход=expensive_building_materials:1 | побочно=slag:0.2
+НАСТРОЙКА ПРОМЫШЛЕННОСТИ YAML
+schema_version: 2
+resources:
+  wood:
+    name: Дерево
+    group: forestry
+    availability: 90
+    quality: 85
+    consumption: 200
+    storage_capacity: 10000
+  fresh_water:
+    name: Пресная вода
+    group: fresh_water
+    availability: 95
+    quality: 90
+    consumption: 800
+    storage_capacity: 30000
+  copper:
+    name: Медь
+    group: nonferrous
+    availability: 75
+    quality: 80
+    consumption: 0
+    storage_capacity: 6000
+  aluminum:
+    name: Алюминий
+    group: strategic_metals
+    availability: 78
+    quality: 78
+    consumption: 0
+    storage_capacity: 8000
+  iron:
+    name: Железо
+    group: ferrous
+    availability: 82
+    quality: 78
+    consumption: 300
+    storage_capacity: 25000
+  sulfur:
+    name: Сера
+    group: chemical
+    availability: 80
+    quality: 80
+    consumption: 0
+    storage_capacity: 7000
+  silicon:
+    name: Кремний
+    group: chemical
+    availability: 85
+    quality: 82
+    consumption: 0
+    storage_capacity: 10000
+  basic_building_materials:
+    name: Базовые стройматериалы
+    group: construction
+    availability: 100
+    quality: 100
+    consumption: 250
+    storage_capacity: 10000
+  expensive_building_materials:
+    name: Дорогие стройматериалы
+    group: construction
+    availability: 100
+    quality: 100
+    consumption: 50
+    storage_capacity: 4000
+  coal:
+    name: Уголь
+    group: solid_fuel
+    availability: 80
+    quality: 75
+    consumption: 250
+    storage_capacity: 16000
+  oil:
+    name: Нефть
+    group: hydrocarbons
+    availability: 75
+    quality: 85
+    consumption: 400
+    storage_capacity: 20000
+  gas:
+    name: Газ
+    group: hydrocarbons
+    availability: 80
+    quality: 88
+    consumption: 400
+    storage_capacity: 25000
+  slag:
+    name: Шлак
+    group: recycling
+    availability: 100
+    quality: 100
+    consumption: 0
+    storage_capacity: 8000
+extraction:
+  forestry:
+    intensity: 70
+    priority: 1
+  fresh_water:
+    intensity: 90
+    priority: 3
+  strategic_metals:
+    intensity: 60
+    priority: 1
+  nonferrous:
+    intensity: 60
+    priority: 1
+  ferrous:
+    intensity: 85
+    priority: 2
+  chemical:
+    intensity: 70
+    priority: 1
+  solid_fuel:
+    intensity: 75
+    priority: 2
+  hydrocarbons:
+    intensity: 90
+    priority: 3
+production:
+  - id: basic_building_materials
+    name: Базовые стройматериалы
+    active: true
+    batches: 150
+    turns: 6
+    inputs:
+      iron: 2
+      coal: 1
+      silicon: 0.5
+    outputs:
+      basic_building_materials: 2.5
+    byproducts:
+      slag: 0.4
+  - id: expensive_building_materials
+    name: Дорогие стройматериалы
+    active: true
+    batches: 40
+    turns: 4
+    inputs:
+      basic_building_materials: 2
+      copper: 0.5
+      aluminum: 0.5
+    outputs:
+      expensive_building_materials: 1
+    byproducts:
+      slag: 0.2
+effects:
+  - id: freshwater_population_growth
+    dependencies:
+      - resource: fresh_water
+    targets:
+      - population_growth
+    formula: -target * resources.fresh_water.deficit
+  - id: construction_infrastructure_expenses
+    dependencies:
+      - group: construction
+    targets:
+      - infrastructure_expenses
+    formula: >-
+      target * (0.4 * groups.construction.deficit -
+      min(0.25 * groups.construction.surplus, 0.2))
+  - id: hydrocarbons_transport
+    dependencies:
+      - group: hydrocarbons
+    targets:
+      - logistic
+      - trade_efficiency
+    formula: -target * groups.hydrocarbons.deficit * 0.08
+  - id: freshwater_society
+    dependencies:
+      - resource: fresh_water
+    targets:
+      - contentment
+      - food_diversity
+      - population_epidemic_chance
+    formula: -target * resources.fresh_water.deficit * 0.05
 КОНЕЦ НАСТРОЙКИ ПРОМЫШЛЕННОСТИ

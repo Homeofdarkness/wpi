@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from functions.inbuilt import gaussian_kernel, sigmoid, tanh
+from functions.inbuilt import sigmoid, tanh
 
 
 def cultural_coefficient(
@@ -110,7 +110,15 @@ def panic_income_factor(panic_level: float) -> float:
 
 
 def food_diversity_income_factor(food_diversity: float) -> float:
-    return gaussian_kernel(-food_diversity / 10) * (1.9 / 0.4)
+    """Bounded demographic effect of the 0..100 diversity index.
+
+    The previous Gaussian expression returned exactly zero at diversity 0,
+    rewarded negative values, and was hard to reason about. The replacement
+    keeps the effect modest and monotonic: 0 gives a 10% penalty, 50 is close
+    to equilibrium, and 100 gives a 12% bonus.
+    """
+    normalized = min(max(float(food_diversity), 0.0), 100.0) / 100
+    return 0.9 + 0.22 * normalized
 
 
 def population_decrement_factor(decrement_coefficient: int) -> float:

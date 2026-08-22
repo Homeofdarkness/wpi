@@ -30,6 +30,7 @@ class TurnLedger:
     science_income: float
     resource_balance: float
     debt_interest: float
+    resource_effect_wastes: float
     total_wastes: float
     inflation_factor: float
     mode_income_factor: float = 1.0
@@ -115,6 +116,7 @@ class SkipMoveReport:
     science_income: float
     resource_balance: float
     debt_interest: float
+    resource_effect_wastes: float
     money_income: float
     budget_after_raw: float
     stability_after: float

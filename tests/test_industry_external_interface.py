@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -85,13 +86,14 @@ def test_external_industry_format_is_human_readable_and_roundtrips():
     assert "ПРОИЗВОДСТВО ЗА ХОД" not in state_text
     assert "РАБОЧАЯ СИЛА" not in settings_text
     assert "СОСТОЯНИЕ РЕСУРСОВ" not in settings_text
-    assert "Ресурс Железо [iron]" in settings_text
-    assert "Группа Чёрные металлы [ferrous]" in settings_text
-    assert "Добыча ferrous |" in settings_text
-    assert "вкл=" not in settings_text
-    assert "Правило Железные детали [iron_parts]" in settings_text
+    assert "iron:\n    name: Железо" in settings_text
+    assert "СОСТОЯНИЕ ГРУПП" in state_text
+    assert "Чёрные металлы [ferrous]" in state_text
+    assert "extraction:\n  ferrous:" in settings_text
+    assert "active: true" in settings_text
+    assert "id: iron_parts" in settings_text
     assert "{" not in state_text
-    assert "{" not in settings_text
+    assert "ПРОМЫШЛЕННОЕ_СОСТОЯНИЕ:" not in settings_text
     assert (
         parsed.resource_inventory.resources[ResourceType.IRON].stockpile == 25
     )
@@ -115,12 +117,65 @@ def test_external_industry_numbers_have_at_most_one_decimal_place():
     assert "12.3 / 100" in state_text
     assert "45.7" in state_text
     assert "1.2" in state_text
-    assert "склад=100" in settings_text
+    assert "storage_capacity: 100.0" in settings_text
     resource_row = next(
         line for line in state_text.splitlines() if "Железо [iron]" in line
     )
     assert re.search(r"\d+\.\d{2,}", resource_row) is None
-    assert re.search(r"\d+\.\d{2,}", settings_text) is None
+    assert "availability: 82.3" in settings_text
+
+
+def test_arbitrary_resource_roundtrips_without_a_global_catalog_entry():
+    industry = make_basic_bundle().industry
+    custom = ResourceType("reinforced_glass")
+    industry.register_resource(
+        ResourceRegistration(
+            resource=custom,
+            name="Армированное стекло",
+            group=ExtractionGroup.CONSTRUCTION,
+            stockpile=25,
+            storage_capacity=300,
+            accessibility=72,
+            quality=81,
+            consumption_per_turn=20,
+        )
+    )
+
+    settings = industry.render_configuration()
+    parsed = IndustrialStats.from_stats_text(f"{industry}\n{settings}")
+    restored = parsed.resource_inventory.resources[custom]
+
+    assert "reinforced_glass:\n    name: Армированное стекло" in settings
+    assert restored.definition.name == "Армированное стекло"
+    assert restored.definition.group is ExtractionGroup.CONSTRUCTION
+    assert restored.stockpile == 25
+    assert parsed.resource_demands[custom] == 20
+
+
+def test_checked_in_custom_resource_example_is_executable() -> None:
+    path = (
+        Path(__file__).parents[1]
+        / "test_files"
+        / "custom_resource_industry_example.txt"
+    )
+    bundle = make_basic_bundle(budget=1_000_000_000)
+    bundle.industry = IndustrialStats.from_stats_text(
+        f"{bundle.industry.render_pretty()}\n"
+        f"{path.read_text(encoding='utf-8')}"
+    )
+
+    make_engine(bundle, seed=706).run()
+
+    custom = ResourceType("reinforced_glass")
+    assert bundle.industry.last_production[0].completed_batches > 0
+    assert bundle.industry.last_production[0].outputs_produced[custom] > 0
+    assert bundle.industry.resource_shortages[custom] == 0
+    assert {effect.target for effect in bundle.industry.last_effects} == {
+        "infrastructure_expenses",
+        "logistic",
+        "civil_efficiency",
+        "industrial_accident_chance",
+    }
 
 
 def test_storage_limit_is_a_setting_and_workforce_is_not():
@@ -132,7 +187,7 @@ def test_storage_limit_is_a_setting_and_workforce_is_not():
     )
     settings = industry.render_configuration()
 
-    assert "склад=100" in settings
+    assert "storage_capacity: 100.0" in settings
     assert "25 / 100" not in settings
     assert "РАБОЧАЯ СИЛА" not in settings
     assert "25 / 100" in str(industry)
@@ -142,8 +197,10 @@ def test_storage_limit_is_a_setting_and_workforce_is_not():
     assert iron.storage_capacity == 100
     assert iron.stockpile == 25
 
-    invalid = settings.replace("ДОБЫЧА", "РАБОЧАЯ СИЛА\nДОБЫЧА")
-    with pytest.raises(ValueError, match="больше не настраивается"):
+    invalid = settings.replace(
+        "schema_version: 2", "schema_version: 2\nworkforce: {}"
+    )
+    with pytest.raises(ValueError, match="Некорректная настройка"):
         IndustrialStats.from_stats_text(
             f"{industry.render_pretty()}\n{invalid}"
         )
@@ -163,8 +220,8 @@ def test_human_can_edit_rule_batches_and_duration_in_text():
         )
     )
     settings = industry.render_configuration().replace(
-        "партий=10 | ходов=2",
-        "партий=25 | ходов=4",
+        "batches: 10.0\n    turns: 2",
+        "batches: 25.0\n    turns: 4",
     )
 
     parsed = IndustrialStats.from_stats_text(f"{industry}\n{settings}")
@@ -210,12 +267,19 @@ def test_external_format_reports_typos_and_incomplete_blocks():
     text = industry.render_configuration()
     snapshot = f"{industry.render_pretty()}\n{text}"
 
-    with pytest.raises(ValueError, match="Неизвестные параметры"):
+    with pytest.raises(ValueError, match="Некорректная настройка"):
         IndustrialStats.from_stats_text(
-            snapshot.replace("партий=10", "партии=10")
+            snapshot.replace("batches: 10.0", "batchess: 10.0")
         )
-    with pytest.raises(ValueError, match="ровно один полный блок"):
+    with pytest.raises(ValueError, match="ровно один полный .*блок"):
         IndustrialStats.from_stats_text(snapshot.replace(CONFIG_END, ""))
+
+    with pytest.raises(ValueError, match="Старый строковый формат"):
+        IndustrialStats.from_stats_text(
+            f"{industry.render_pretty()}\n"
+            "НАСТРОЙКА ПРОМЫШЛЕННОСТИ\nГРУППЫ\n"
+            f"{CONFIG_END}"
+        )
 
 
 def test_external_format_rejects_unregistered_rule_resources():
@@ -351,7 +415,8 @@ def test_resource_and_extraction_rules_are_registered_separately():
 
     assert state.enabled
     assert industry.resource_demands[ResourceType.IRON] == 12
-    assert industry.registered_resource_groups == [ExtractionGroup.FERROUS]
+    assert "Лесное хозяйство [forestry]" in str(industry)
+    assert "Уникальные ресурсы [unique]" in str(industry)
     assert industry.extraction_operations == [operation]
 
     industry.set_extraction_operation(
@@ -397,8 +462,8 @@ def test_group_and_resource_extraction_share_workers_automatically():
     )
     assert not hasattr(industry.extraction_operations[0], "ordinary_workers")
     rendered = industry.render_configuration()
-    assert "Добыча ferrous |" in rendered
-    assert "Добыча iron |" in rendered
+    assert "extraction:\n  ferrous:" in rendered
+    assert "\n  iron:\n    intensity:" in rendered
 
 
 def test_group_production_rule_roundtrips_and_produces_group_outputs():

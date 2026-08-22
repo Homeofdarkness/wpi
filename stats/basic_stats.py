@@ -7,19 +7,24 @@ from stats.derived_fields import (
     populate_basic_inner_politics,
 )
 from stats.industry_components import (
-    RESOURCE_CATALOG,
     ExtractionGroup,
     ExtractionOperation,
     IndustrialWorkforce,
     ResourceInventory,
-    ResourceKind,
     ResourceRegistration,
     ResourceState,
     ResourceTransfer,
     ResourceType,
 )
+from stats.industry_effects import (
+    DependencyMetric,
+    IndustrialEffect,
+    IndustrialEffectResult,
+    default_industrial_effects,
+)
 from stats.industry_text import (
     parse_industry_configuration,
+    render_group_state_table,
     render_industry_configuration,
     render_resource_state_table,
 )
@@ -124,9 +129,6 @@ class IndustrialStats(StatsBase):
     workforce: IndustrialWorkforce = pydantic.Field(
         default_factory=IndustrialWorkforce
     )
-    registered_resource_groups: list[ExtractionGroup] = pydantic.Field(
-        default_factory=list
-    )
     extraction_operations: list[ExtractionOperation] = pydantic.Field(
         default_factory=list
     )
@@ -144,6 +146,12 @@ class IndustrialStats(StatsBase):
     )
     resource_shortages: dict[ResourceType, float] = pydantic.Field(
         default_factory=dict
+    )
+    effects: list[IndustrialEffect] = pydantic.Field(
+        default_factory=default_industrial_effects
+    )
+    last_effects: list[IndustrialEffectResult] = pydantic.Field(
+        default_factory=list
     )
 
     def recalculate_derived_fields(self):
@@ -182,6 +190,8 @@ class IndustrialStats(StatsBase):
 
         state = ResourceState(
             resource=registration.resource,
+            name=registration.name,
+            group=registration.group,
             enabled=True,
             stockpile=registration.stockpile,
             storage_capacity=registration.storage_capacity,
@@ -189,7 +199,6 @@ class IndustrialStats(StatsBase):
             quality=registration.quality,
         )
         self.resource_inventory.resources[registration.resource] = state
-        self.register_resource_group(state.definition.group)
         if registration.consumption_per_turn > 0:
             self.resource_demands[registration.resource] = (
                 registration.consumption_per_turn
@@ -199,21 +208,14 @@ class IndustrialStats(StatsBase):
         return state
 
     def register_resource_group(self, group: ExtractionGroup) -> None:
-        """Register a group once while preserving the visible order."""
-        if group not in self.registered_resource_groups:
-            self.registered_resource_groups.append(group)
+        """Compatibility no-op: extraction groups are now always available."""
+        ExtractionGroup(group)
 
     def set_extraction_operation(
         self,
         operation: ExtractionOperation,
     ) -> None:
         """Add or replace extraction by one registered alias."""
-        try:
-            group = ExtractionGroup(operation.target)
-        except ValueError:
-            pass
-        else:
-            self.register_resource_group(group)
         for index, current in enumerate(self.extraction_operations):
             if current.target_key == operation.target_key:
                 self.extraction_operations[index] = operation
@@ -225,16 +227,16 @@ class IndustrialStats(StatsBase):
         operation: ExtractionOperation,
     ) -> tuple[ExtractionGroup, ResourceType | None]:
         """Resolve one alias: registered groups take precedence."""
-        for group in self.registered_resource_groups:
-            if group.value == operation.target:
-                return group, None
         try:
+            return ExtractionGroup(operation.target), None
+        except ValueError:
             resource = ResourceType(operation.target)
-        except ValueError as error:
+        try:
+            state = self.resource_inventory.resources[resource]
+        except KeyError as error:
             raise ValueError(
                 f"Неизвестная цель добычи: {operation.target}"
             ) from error
-        state = self.resource_inventory.resources[resource]
         if not state.enabled:
             raise ValueError(
                 f"Ресурс добычи не зарегистрирован: {operation.target}"
@@ -255,7 +257,6 @@ class IndustrialStats(StatsBase):
         registered_resources = {
             resource for resource, state in resources.items() if state.enabled
         }
-        registered_groups = set(self.registered_resource_groups)
         for rule in self.production_rules:
             if not rule.enabled:
                 continue
@@ -282,14 +283,19 @@ class IndustrialStats(StatsBase):
                     f"Цель правила {rule.rule_id} не зарегистрирована: "
                     f"{rule.target_resource.value}"
                 )
-            if (
-                rule.target_group is not None
-                and rule.target_group not in registered_groups
-            ):
-                raise ValueError(
-                    f"Целевая группа правила {rule.rule_id} не "
-                    f"зарегистрирована: {rule.target_group.value}"
-                )
+            if rule.target_group is not None:
+                unrelated = [
+                    resource
+                    for resource in rule.outputs
+                    if resources[resource].definition.group
+                    is not rule.target_group
+                ]
+                if unrelated:
+                    names = ", ".join(item.value for item in unrelated)
+                    raise ValueError(
+                        f"Выходы правила {rule.rule_id} не относятся к "
+                        f"группе {rule.target_group.value}: {names}"
+                    )
 
         for operation in self.extraction_operations:
             target_group, target_resource = self.resolve_extraction_target(
@@ -300,11 +306,9 @@ class IndustrialStats(StatsBase):
                 for state in resources.values()
                 if state.enabled
                 and state.definition.group is target_group
-                and state.definition.kind
-                not in {ResourceKind.MANUFACTURED, ResourceKind.BYPRODUCT}
                 and (
                     target_resource is None
-                    or state.resource is target_resource
+                    or state.resource == target_resource
                 )
             ]
             if not eligible:
@@ -325,16 +329,27 @@ class IndustrialStats(StatsBase):
             for state in self.resource_inventory.resources.values()
             if state.enabled
         ]
-        if not active:
-            return "СОСТОЯНИЕ РЕСУРСОВ\nНет данных"
+        group_lines = render_group_state_table(
+            active,
+            self.last_extracted,
+            self.resource_shortages,
+        )
+        resource_lines = (
+            render_resource_state_table(
+                active,
+                self.last_extracted,
+                self.resource_shortages,
+            )
+            if active
+            else ["Нет данных"]
+        )
         return "\n".join(
             (
+                "СОСТОЯНИЕ ГРУПП",
+                *group_lines,
+                "",
                 "СОСТОЯНИЕ РЕСУРСОВ",
-                *render_resource_state_table(
-                    active,
-                    self.last_extracted,
-                    self.resource_shortages,
-                ),
+                *resource_lines,
             )
         )
 
@@ -375,24 +390,111 @@ class IndustrialStats(StatsBase):
                 )
         return "\n".join(rows)
 
-    @staticmethod
+    def render_effect_results(self) -> str:
+        """Expose configured effects and actual deltas for every target."""
+        rows = ["ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ"]
+        if not self.effects:
+            rows.append("Эффекты не настроены")
+            return "\n".join(rows)
+
+        results = {
+            (result.effect_id, result.target): result
+            for result in self.last_effects
+        }
+        target_width = max(
+            len(target) for effect in self.effects for target in effect.targets
+        )
+        for effect in self.effects:
+            rows.append(f"{effect.id}:")
+            for target in effect.targets:
+                label = f"  {target:<{target_width}} : "
+                result = results.get((effect.id, target))
+                if result is None:
+                    rows.append(f"{label}ожидает расчёта хода")
+                    continue
+                rows.append(
+                    f"{label}{result.target_before:.1f} -> "
+                    f"{result.target_after:.1f} "
+                    f"({result.adjustment:+.1f})"
+                )
+        return "\n".join(rows)
+
     def _format_resource_amounts(
+        self,
         values: dict[ResourceType, float],
     ) -> str:
         if not values:
             return "нет"
         return ", ".join(
-            f"{RESOURCE_CATALOG[resource].name} {amount:.1f}"
+            f"{self.resource_inventory.resources[resource].definition.name} "
+            f"{amount:.1f}"
             for resource, amount in values.items()
         )
+
+    def dependency_metrics(
+        self,
+    ) -> tuple[dict[str, DependencyMetric], dict[str, DependencyMetric]]:
+        """Return normalized deficit/surplus inputs exposed to formulas."""
+        active = [
+            state
+            for state in self.resource_inventory.resources.values()
+            if state.enabled
+        ]
+        resource_metrics: dict[str, DependencyMetric] = {}
+        for state in active:
+            demand = self.resource_demands.get(state.resource, 0.0)
+            resource_metrics[state.resource.value] = DependencyMetric(
+                deficit=(
+                    self.resource_shortages.get(state.resource, 0.0) / demand
+                    if demand > 0
+                    else 0.0
+                ),
+                surplus=state.stockpile / demand if demand > 0 else 0.0,
+            )
+
+        group_metrics: dict[str, DependencyMetric] = {}
+        for group in ExtractionGroup:
+            demanded = [
+                state
+                for state in active
+                if state.group is group
+                and self.resource_demands.get(state.resource, 0.0) > 0
+            ]
+            total_demand = sum(
+                self.resource_demands[state.resource] for state in demanded
+            )
+            group_metrics[group.value] = DependencyMetric(
+                deficit=(
+                    sum(
+                        self.resource_shortages.get(state.resource, 0.0)
+                        for state in demanded
+                    )
+                    / total_demand
+                    if total_demand > 0
+                    else 0.0
+                ),
+                surplus=(
+                    sum(state.stockpile for state in demanded) / total_demand
+                    if total_demand > 0
+                    else 0.0
+                ),
+            )
+        for effect in self.effects:
+            for dependency in effect.dependencies:
+                if dependency.resource is not None:
+                    resource_metrics.setdefault(
+                        dependency.resource.value,
+                        DependencyMetric(),
+                    )
+        return resource_metrics, group_metrics
 
     def render_configuration(self) -> str:
         return render_industry_configuration(
             resources=self.resource_inventory.resources,
             operations=self.extraction_operations,
             production_rules=self.production_rules,
+            effects=self.effects,
             demands=self.resource_demands,
-            registered_groups=self.registered_resource_groups,
         )
 
     def __str__(self):
@@ -422,13 +524,13 @@ class IndustrialStats(StatsBase):
             return stats
 
         stats.resource_inventory = ResourceInventory()
-        stats.registered_resource_groups = list(configuration.groups)
         stats.extraction_operations = []
         for registration in configuration.registrations:
             stats.register_resource(registration)
         for operation in configuration.operations:
             stats.set_extraction_operation(operation)
         stats.production_rules = configuration.production_rules
+        stats.effects = configuration.effects
         stats.resource_demands = configuration.demands
         stats.last_extracted = configuration.extracted
         stats.resource_shortages = configuration.shortages

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -9,6 +10,13 @@ import pydantic
 
 
 class ResourceType(StrEnum):
+    """Resource alias.
+
+    The named members are compatibility shortcuts for the bundled resources.
+    Unknown, valid aliases are accepted as dynamic values, so the catalogue no
+    longer limits which materials a country can register.
+    """
+
     WOOD = "wood"
     FRESH_WATER = "fresh_water"
     MINERAL_WATER = "mineral_water"
@@ -47,14 +55,17 @@ class ResourceType(StrEnum):
     BIOWASTE = "biowaste"
     MINERALS = "minerals"
 
-
-class ResourceKind(StrEnum):
-    NONRENEWABLE = "nonrenewable"
-    RENEWABLE = "renewable"
-    RESERVOIR = "reservoir"
-    MANUFACTURED = "manufactured"
-    BYPRODUCT = "byproduct"
-    UNIQUE = "unique"
+    @classmethod
+    def _missing_(cls, value: object) -> ResourceType | None:
+        if (
+            not isinstance(value, str)
+            or re.fullmatch(r"[a-z][a-z0-9_]*", value) is None
+        ):
+            return None
+        member = str.__new__(cls, value)
+        member._name_ = f"CUSTOM_{value.upper()}"
+        member._value_ = value
+        return member
 
 
 class ExtractionGroup(StrEnum):
@@ -82,153 +93,106 @@ class ExtractionGroup(StrEnum):
 @dataclass(frozen=True)
 class ResourceDefinition:
     name: str
-    kind: ResourceKind
     group: ExtractionGroup
     unit: str = "ед.рес."
 
 
 def _definition(
     name: str,
-    kind: ResourceKind,
     group: ExtractionGroup,
 ) -> ResourceDefinition:
-    return ResourceDefinition(name=name, kind=kind, group=group)
+    return ResourceDefinition(name=name, group=group)
 
 
 RESOURCE_CATALOG: dict[ResourceType, ResourceDefinition] = {
-    ResourceType.WOOD: _definition(
-        "Дерево", ResourceKind.RENEWABLE, ExtractionGroup.FORESTRY
-    ),
+    ResourceType.WOOD: _definition("Дерево", ExtractionGroup.FORESTRY),
     ResourceType.FRESH_WATER: _definition(
-        "Пресная вода", ResourceKind.RESERVOIR, ExtractionGroup.FRESH_WATER
+        "Пресная вода", ExtractionGroup.FRESH_WATER
     ),
     ResourceType.MINERAL_WATER: _definition(
         "Солёная и минеральная вода",
-        ResourceKind.RESERVOIR,
         ExtractionGroup.MINERAL_WATER,
     ),
-    ResourceType.GOLD: _definition(
-        "Золото", ResourceKind.NONRENEWABLE, ExtractionGroup.PRECIOUS
-    ),
-    ResourceType.SILVER: _definition(
-        "Серебро", ResourceKind.NONRENEWABLE, ExtractionGroup.PRECIOUS
-    ),
-    ResourceType.COPPER: _definition(
-        "Медь", ResourceKind.NONRENEWABLE, ExtractionGroup.NONFERROUS
-    ),
+    ResourceType.GOLD: _definition("Золото", ExtractionGroup.PRECIOUS),
+    ResourceType.SILVER: _definition("Серебро", ExtractionGroup.PRECIOUS),
+    ResourceType.COPPER: _definition("Медь", ExtractionGroup.NONFERROUS),
     ResourceType.ALUMINUM: _definition(
         "Алюминий",
-        ResourceKind.NONRENEWABLE,
         ExtractionGroup.STRATEGIC_METALS,
     ),
     ResourceType.TITANIUM: _definition(
-        "Титан", ResourceKind.NONRENEWABLE, ExtractionGroup.STRATEGIC_METALS
+        "Титан", ExtractionGroup.STRATEGIC_METALS
     ),
     ResourceType.OTHER_NONFERROUS: _definition(
         "Остальные цветные металлы",
-        ResourceKind.NONRENEWABLE,
         ExtractionGroup.NONFERROUS,
     ),
-    ResourceType.IRON: _definition(
-        "Железо", ResourceKind.NONRENEWABLE, ExtractionGroup.FERROUS
-    ),
+    ResourceType.IRON: _definition("Железо", ExtractionGroup.FERROUS),
     ResourceType.HEAVY_METALS: _definition(
         "Тяжёлые металлы",
-        ResourceKind.NONRENEWABLE,
         ExtractionGroup.HEAVY_METALS,
     ),
     ResourceType.CHROMIUM: _definition(
-        "Хром", ResourceKind.NONRENEWABLE, ExtractionGroup.STRATEGIC_METALS
+        "Хром", ExtractionGroup.STRATEGIC_METALS
     ),
     ResourceType.OTHER_FERROUS: _definition(
         "Остальные чёрные металлы",
-        ResourceKind.NONRENEWABLE,
         ExtractionGroup.FERROUS,
     ),
-    ResourceType.SULFUR: _definition(
-        "Сера", ResourceKind.NONRENEWABLE, ExtractionGroup.CHEMICAL
-    ),
-    ResourceType.SILICON: _definition(
-        "Кремний", ResourceKind.NONRENEWABLE, ExtractionGroup.CHEMICAL
-    ),
+    ResourceType.SULFUR: _definition("Сера", ExtractionGroup.CHEMICAL),
+    ResourceType.SILICON: _definition("Кремний", ExtractionGroup.CHEMICAL),
     ResourceType.BASIC_BUILDING_MATERIALS: _definition(
         "Базовые стройматериалы",
-        ResourceKind.MANUFACTURED,
         ExtractionGroup.CONSTRUCTION,
     ),
     ResourceType.EXPENSIVE_BUILDING_MATERIALS: _definition(
         "Дорогие стройматериалы",
-        ResourceKind.MANUFACTURED,
         ExtractionGroup.CONSTRUCTION,
     ),
     ResourceType.CORE_CRYSTAL: _definition(
-        "Кристалл ядра", ResourceKind.UNIQUE, ExtractionGroup.UNIQUE
+        "Кристалл ядра", ExtractionGroup.UNIQUE
     ),
-    ResourceType.COAL: _definition(
-        "Уголь", ResourceKind.NONRENEWABLE, ExtractionGroup.SOLID_FUEL
-    ),
-    ResourceType.OIL: _definition(
-        "Нефть", ResourceKind.NONRENEWABLE, ExtractionGroup.HYDROCARBONS
-    ),
-    ResourceType.GAS: _definition(
-        "Газ", ResourceKind.NONRENEWABLE, ExtractionGroup.HYDROCARBONS
-    ),
-    ResourceType.PEAT: _definition(
-        "Торф", ResourceKind.NONRENEWABLE, ExtractionGroup.SOLID_FUEL
-    ),
+    ResourceType.COAL: _definition("Уголь", ExtractionGroup.SOLID_FUEL),
+    ResourceType.OIL: _definition("Нефть", ExtractionGroup.HYDROCARBONS),
+    ResourceType.GAS: _definition("Газ", ExtractionGroup.HYDROCARBONS),
+    ResourceType.PEAT: _definition("Торф", ExtractionGroup.SOLID_FUEL),
     ResourceType.NOBLE_GASES: _definition(
         "Благородные газы",
-        ResourceKind.NONRENEWABLE,
         ExtractionGroup.HYDROCARBONS,
     ),
     ResourceType.PRECIOUS_STONES: _definition(
         "Драгоценные камни",
-        ResourceKind.NONRENEWABLE,
         ExtractionGroup.PRECIOUS,
     ),
-    ResourceType.DIAMONDS: _definition(
-        "Алмазы", ResourceKind.NONRENEWABLE, ExtractionGroup.PRECIOUS
-    ),
+    ResourceType.DIAMONDS: _definition("Алмазы", ExtractionGroup.PRECIOUS),
     ResourceType.UNIQUE_RESOURCES: _definition(
-        "Уникальные ресурсы", ResourceKind.UNIQUE, ExtractionGroup.UNIQUE
+        "Уникальные ресурсы", ExtractionGroup.UNIQUE
     ),
     ResourceType.LITHIUM: _definition(
-        "Литий", ResourceKind.NONRENEWABLE, ExtractionGroup.STRATEGIC_METALS
+        "Литий", ExtractionGroup.STRATEGIC_METALS
     ),
     ResourceType.RARE_EARTH_METALS: _definition(
         "Редкоземельные металлы",
-        ResourceKind.NONRENEWABLE,
         ExtractionGroup.RARE_EARTH,
     ),
     ResourceType.NICKEL: _definition(
-        "Никель", ResourceKind.NONRENEWABLE, ExtractionGroup.STRATEGIC_METALS
+        "Никель", ExtractionGroup.STRATEGIC_METALS
     ),
     ResourceType.ROCK_SALT: _definition(
-        "Каменная соль", ResourceKind.NONRENEWABLE, ExtractionGroup.SALTS
+        "Каменная соль", ExtractionGroup.SALTS
     ),
     ResourceType.POTASH_SALT: _definition(
-        "Калийная соль", ResourceKind.NONRENEWABLE, ExtractionGroup.SALTS
+        "Калийная соль", ExtractionGroup.SALTS
     ),
-    ResourceType.CHERNOZEM: _definition(
-        "Чернозём", ResourceKind.RENEWABLE, ExtractionGroup.SOIL
-    ),
-    ResourceType.RUBBER: _definition(
-        "Каучук", ResourceKind.RENEWABLE, ExtractionGroup.PLANTATIONS
-    ),
+    ResourceType.CHERNOZEM: _definition("Чернозём", ExtractionGroup.SOIL),
+    ResourceType.RUBBER: _definition("Каучук", ExtractionGroup.PLANTATIONS),
     ResourceType.EXOTIC_WOOD: _definition(
         "Экзотическая древесина",
-        ResourceKind.RENEWABLE,
         ExtractionGroup.FORESTRY,
     ),
-    ResourceType.SLAG: _definition(
-        "Шлак", ResourceKind.BYPRODUCT, ExtractionGroup.RECYCLING
-    ),
-    ResourceType.BIOWASTE: _definition(
-        "Биоотходы", ResourceKind.BYPRODUCT, ExtractionGroup.RECYCLING
-    ),
-    ResourceType.MINERALS: _definition(
-        "Минералы", ResourceKind.NONRENEWABLE, ExtractionGroup.MINERALS
-    ),
+    ResourceType.SLAG: _definition("Шлак", ExtractionGroup.RECYCLING),
+    ResourceType.BIOWASTE: _definition("Биоотходы", ExtractionGroup.RECYCLING),
+    ResourceType.MINERALS: _definition("Минералы", ExtractionGroup.MINERALS),
 }
 
 
@@ -247,15 +211,36 @@ class ResourceState(pydantic.BaseModel):
     )
 
     resource: ResourceType
+    name: str | None = pydantic.Field(None, min_length=1)
+    group: ExtractionGroup | None = None
     enabled: bool = False
     stockpile: float = pydantic.Field(0.0, ge=0)
     storage_capacity: float = pydantic.Field(0.0, ge=0)
     accessibility: float = pydantic.Field(100.0, ge=0, le=100)
     quality: float = pydantic.Field(100.0, ge=0, le=100)
 
+    @pydantic.model_validator(mode="after")
+    def populate_definition(self) -> ResourceState:
+        bundled = RESOURCE_CATALOG.get(self.resource)
+        if self.name is None:
+            object.__setattr__(
+                self,
+                "name",
+                bundled.name if bundled is not None else self.resource.value,
+            )
+        if self.group is None:
+            if bundled is None:
+                raise ValueError(
+                    f"Для нового ресурса {self.resource.value} нужна группа"
+                )
+            object.__setattr__(self, "group", bundled.group)
+        return self
+
     @property
     def definition(self) -> ResourceDefinition:
-        return RESOURCE_CATALOG[self.resource]
+        assert self.name is not None
+        assert self.group is not None
+        return ResourceDefinition(name=self.name, group=self.group)
 
     def collect(self, amount: float) -> ResourceTransfer:
         requested = max(float(amount), 0.0)
@@ -319,7 +304,10 @@ class ResourceInventory(pydantic.BaseModel):
         accessibility: float = 100.0,
         quality: float = 100.0,
     ) -> ResourceState:
-        state = self.resources[resource]
+        state = self.resources.get(resource)
+        if state is None:
+            state = ResourceState(resource=resource)
+            self.resources[resource] = state
         state.enabled = enabled
         state.stockpile = stockpile
         state.storage_capacity = storage_capacity
@@ -384,6 +372,8 @@ class ResourceRegistration(pydantic.BaseModel):
     )
 
     resource: ResourceType
+    name: str | None = pydantic.Field(None, min_length=1)
+    group: ExtractionGroup | None = None
     stockpile: float = pydantic.Field(0.0, ge=0)
     storage_capacity: float = pydantic.Field(0.0, ge=0)
     accessibility: float = pydantic.Field(100.0, ge=0, le=100)
@@ -394,4 +384,17 @@ class ResourceRegistration(pydantic.BaseModel):
     def validate_registration(self) -> ResourceRegistration:
         if self.stockpile > self.storage_capacity:
             raise ValueError("Запас на складе превышает его вместимость")
+        bundled = RESOURCE_CATALOG.get(self.resource)
+        if self.name is None:
+            object.__setattr__(
+                self,
+                "name",
+                bundled.name if bundled is not None else self.resource.value,
+            )
+        if self.group is None:
+            if bundled is None:
+                raise ValueError(
+                    f"Для нового ресурса {self.resource.value} нужна группа"
+                )
+            object.__setattr__(self, "group", bundled.group)
         return self

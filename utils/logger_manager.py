@@ -17,7 +17,7 @@ def configure_logging() -> None:
         return
     level_name = os.environ.get("WPI_LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
-    handlers: list[logging.Handler] = []
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
     log_to_file = os.environ.get("WPI_LOG_TO_FILE", "0").lower() in {
         "1",
         "true",

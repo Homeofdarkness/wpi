@@ -49,10 +49,14 @@ def workers_count(
     # a 0..1 coefficient, so a perfectly normal input of ``100`` created one
     # hundred times more workers and agricultural expenses.
     workforce_factor = max(float(workers_percent), 0.0) / 100
-    redistribution_factor = 1 - min(
-        max(float(workers_redistribution), 0.0),
-        100.0,
-    ) / 100
+    redistribution_factor = (
+        1
+        - min(
+            max(float(workers_redistribution), 0.0),
+            100.0,
+        )
+        / 100
+    )
     for (pop1, workers1), (pop2, workers2) in zip(
         points,
         points[1:],
@@ -190,7 +194,10 @@ def food_diversity(
     deviation = abs(husbandry - 40) + abs(livestock - 40) + abs(others - 20)
     if deviation > 0:
         deviation /= 3
-    return biome_richness - deviation
+    # Diversity is a bounded index, not an unbounded difference. Extremely
+    # unbalanced branches or a hostile biome may reduce it to zero, but can
+    # never turn the displayed stat into a negative quantity.
+    return min(100.0, max(0.0, biome_richness - deviation))
 
 
 def food_income(

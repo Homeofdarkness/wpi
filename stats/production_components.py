@@ -8,7 +8,6 @@ from enum import StrEnum
 import pydantic
 
 from stats.industry_components import (
-    RESOURCE_CATALOG,
     ExtractionGroup,
     ResourceType,
 )
@@ -120,21 +119,10 @@ class ProductionRule(pydantic.BaseModel):
                     output_resources[0],
                 )
             else:
-                output_groups = {
-                    RESOURCE_CATALOG[resource].group
-                    for resource in output_resources
-                }
-                if len(output_groups) == 1:
-                    object.__setattr__(
-                        self,
-                        "target_group",
-                        output_groups.pop(),
-                    )
-                else:
-                    raise ValueError(
-                        "Для правила с выходами из разных групп нужно явно "
-                        "задать target_group или target_resource"
-                    )
+                raise ValueError(
+                    "Для правила с несколькими выходами нужно явно задать "
+                    "target_group"
+                )
         if self.target_resource is not None:
             unrelated = set(self.outputs) - {self.target_resource}
             if unrelated:
@@ -142,17 +130,9 @@ class ProductionRule(pydantic.BaseModel):
                     "Выход правила ресурса должен содержать только целевой "
                     "ресурс"
                 )
-        if self.target_group is not None:
-            unrelated = [
-                resource
-                for resource in self.outputs
-                if RESOURCE_CATALOG[resource].group is not self.target_group
-            ]
-            if unrelated:
-                raise ValueError(
-                    "Все выходы группового правила должны относиться к "
-                    f"группе {self.target_group.value}"
-                )
+        # Group membership is country configuration, not a global resource
+        # property. It is validated by ``IndustrialStats`` where registered
+        # custom resources are available.
         for mapping_name, mapping in (
             ("inputs", self.inputs),
             ("outputs", self.outputs),

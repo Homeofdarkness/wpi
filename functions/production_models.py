@@ -49,7 +49,7 @@ def execute_rule(
         ).actual
     for resource, per_batch in rule.byproducts.items():
         amount = per_batch * completed
-        if resource is ResourceType.SLAG:
+        if resource == ResourceType.SLAG:
             amount += nominal_output * (1 - yield_factor)
         byproducts_produced[resource] = inventory.collect(
             resource,
