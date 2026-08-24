@@ -338,7 +338,7 @@ def default_industrial_effects() -> list[IndustrialEffect]:
             id="freshwater_population_growth",
             dependencies=[EffectDependency(resource=ResourceType.FRESH_WATER)],
             targets=[SpecialEffectTarget.POPULATION_GROWTH],
-            formula="-target * resources.fresh_water.deficit",
+            formula="-target * resources.fresh_water.deficit * 0.2",
         ),
         IndustrialEffect(
             id="construction_infrastructure_expenses",
