@@ -122,7 +122,7 @@ production:
     name: Базовые стройматериалы
     active: true
     batches: 150.0
-    turns: 6
+    turns: 5
     inputs:
       iron: 2.0
       coal: 1.0
@@ -135,7 +135,7 @@ production:
     name: Дорогие стройматериалы
     active: true
     batches: 40.0
-    turns: 4
+    turns: 3
     inputs:
       basic_building_materials: 2.0
       copper: 0.5
@@ -151,7 +151,7 @@ effects:
     targets:
       - population_growth
     formula: >-
-      -target * resources.fresh_water.deficit
+      -target * resources.fresh_water.deficit * 0.2
   - id: construction_infrastructure_expenses
     dependencies:
       - group: construction

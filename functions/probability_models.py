@@ -14,9 +14,15 @@ def clip_percent(value: float) -> float:
     return min(100.0, max(0.0, float(value)))
 
 
-def half_year_chance(annual_hazard: float) -> float:
+def turn_chance(annual_hazard: float) -> float:
+    """Convert an annual hazard into a chance for the current turn."""
     hazard = max(float(annual_hazard), 0.0)
     return clip_percent((1 - math.exp(-hazard * TURN_YEARS)) * 100)
+
+
+def half_year_chance(annual_hazard: float) -> float:
+    """Compatibility alias; the result now follows the configured turn."""
+    return turn_chance(annual_hazard)
 
 
 def sample_percent(
@@ -104,7 +110,7 @@ def industrial_accident_chance(
         + 1.2 * forced_worker_share
         + 1.0 * (1 - safety / 100)
     )
-    return half_year_chance(0.045 * max(risk, 0.0))
+    return turn_chance(0.045 * max(risk, 0.0))
 
 
 def supply_disruption_chance(
@@ -118,7 +124,7 @@ def supply_disruption_chance(
         + regional_separatism / 80
         + war_fatigue / 150
     )
-    return half_year_chance(0.035 * max(risk, 0.0))
+    return turn_chance(0.035 * max(risk, 0.0))
 
 
 def population_epidemic_chance(
@@ -136,7 +142,7 @@ def population_epidemic_chance(
         + 0.8 * (1 - information_quality / 100)
         + 0.8 * (1 - healthcare_protection)
     )
-    return half_year_chance(0.025 * max(risk, 0.0))
+    return turn_chance(0.025 * max(risk, 0.0))
 
 
 def agricultural_epidemic_chance(
@@ -150,7 +156,7 @@ def agricultural_epidemic_chance(
         + max(0.0, 60 - food_diversity) / 60
         + max(0.0, 60 - agriculture_efficiency) / 80
     )
-    return half_year_chance(0.04 * max(risk, 0.0))
+    return turn_chance(0.04 * max(risk, 0.0))
 
 
 def natural_disaster_chance(
@@ -158,7 +164,7 @@ def natural_disaster_chance(
     biome_richness: float,
 ) -> float:
     risk = 0.45 + natural_deceases / 30 + max(0.0, 40 - biome_richness) / 80
-    return half_year_chance(0.035 * max(risk, 0.0))
+    return turn_chance(0.035 * max(risk, 0.0))
 
 
 def mass_protest_chance(
@@ -176,7 +182,7 @@ def mass_protest_chance(
         + polarization / 80
         + war_fatigue / 100
     )
-    return half_year_chance(0.055 * max(risk, 0.0))
+    return turn_chance(0.055 * max(risk, 0.0))
 
 
 def separatist_crisis_chance(
@@ -192,7 +198,7 @@ def separatist_crisis_chance(
         + max(0.0, -control_balance) / 50
         + max(0.0, 1 - provinces_support)
     )
-    return half_year_chance(0.04 * max(risk, 0.0))
+    return turn_chance(0.04 * max(risk, 0.0))
 
 
 def major_sabotage_chance(
@@ -208,7 +214,7 @@ def major_sabotage_chance(
         + polarization / 100
         + max(0.0, 50 - information_quality) / 70
     )
-    return half_year_chance(0.035 * max(risk, 0.0))
+    return turn_chance(0.035 * max(risk, 0.0))
 
 
 def mean_or_default(values: list[float], default: float = 100.0) -> float:

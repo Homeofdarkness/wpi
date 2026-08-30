@@ -18,7 +18,7 @@ from utils.user_io import TestIO
 
 
 def test_core_formulas_are_direct_functions():
-    assert population_growth(1_500_000) == pytest.approx(14_805)
+    assert population_growth(1_500_000) == pytest.approx(7_402.5)
     assert trade_potential(8, 95) == pytest.approx(10.7)
     assert civil_usage(100.0, 80.0, 70.0) == 83
 
@@ -38,7 +38,7 @@ def test_finance_and_society_formulas():
         > 0
     )
     assert simple_stability_income_boost(100) == pytest.approx(1.293)
-    assert population_decrement_factor(3) == 0.97
+    assert population_decrement_factor(3) == 0.985
     assert integrity_of_faith_factor(90) == 1.018
 
 

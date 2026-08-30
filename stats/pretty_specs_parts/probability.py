@@ -73,7 +73,7 @@ PROBABILITY_LAYOUT = PrettyLayoutSpec(
                 "research_reproducibility",
             )
         ),
-        PrettyLineSpec(title="ВЕРОЯТНОСТИ СОБЫТИЙ ЗА ПОЛГОДА"),
+        PrettyLineSpec(title="ВЕРОЯТНОСТИ СОБЫТИЙ ЗА КВАРТАЛ"),
         PrettyLineSpec(
             fields=(
                 "industrial_accident_chance",

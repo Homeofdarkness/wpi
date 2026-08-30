@@ -2,18 +2,34 @@
 
 from __future__ import annotations
 
+from functions.time_models import (
+    REFERENCE_TURN_YEARS,
+    TURN_YEARS,
+)
 
-def population_growth(population_count: int) -> float:
+
+def population_growth(
+    population_count: int,
+    years: float = TURN_YEARS,
+) -> float:
+    """Return demographic growth for the requested turn duration.
+
+    The historical coefficients describe a six-month reference period.  The
+    result is scaled so changing the shared turn duration does not silently
+    preserve a half-year population flow.
+    """
     population_in_thousands = population_count * 10**-3
     if population_count > 8 * 10**6:
-        return population_in_thousands * 8.77
-    if population_count >= 5.5 * 10**6:
-        return population_in_thousands * 9.87
-    if population_count >= 2.5 * 10**6:
-        return population_in_thousands * 11.77
-    if population_count >= 10**6:
-        return population_in_thousands * 9.87
-    return population_in_thousands * 6.87
+        reference_growth = population_in_thousands * 8.77
+    elif population_count >= 5.5 * 10**6:
+        reference_growth = population_in_thousands * 9.87
+    elif population_count >= 2.5 * 10**6:
+        reference_growth = population_in_thousands * 11.77
+    elif population_count >= 10**6:
+        reference_growth = population_in_thousands * 9.87
+    else:
+        reference_growth = population_in_thousands * 6.87
+    return reference_growth * max(float(years), 0.0) / REFERENCE_TURN_YEARS
 
 
 def trade_potential(trade_rank: int, trade_efficiency: int) -> float:

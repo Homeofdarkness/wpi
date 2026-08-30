@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functions.inbuilt import sigmoid, tanh
+from functions.time_models import TURN_SCALE
 
 
 def cultural_coefficient(
@@ -122,7 +123,8 @@ def food_diversity_income_factor(food_diversity: float) -> float:
 
 
 def population_decrement_factor(decrement_coefficient: int) -> float:
-    return -0.01 * decrement_coefficient + 1
+    """Scale the historical six-month population decline to one turn."""
+    return 1 - 0.01 * decrement_coefficient * TURN_SCALE
 
 
 def expected_state_apparatus_size(

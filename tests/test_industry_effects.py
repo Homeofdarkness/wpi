@@ -18,6 +18,7 @@ from stats.industry_effects import (
     EffectDependency,
     EffectTarget,
     IndustrialEffect,
+    default_industrial_effects,
     evaluate_effect_formula,
     resolve_effect_target,
 )
@@ -118,14 +119,31 @@ def test_fresh_water_deficit_reduces_growth_in_the_same_turn() -> None:
         )
     control.industry.effects = []
 
-    make_engine(affected, seed=10).run()
-    make_engine(control, seed=10).run()
+    affected_report = make_engine(affected, seed=10).run()
+    control_report = make_engine(control, seed=10).run()
 
     assert (
         affected.industry.resource_shortages[ResourceType.FRESH_WATER] == 100
     )
-    assert affected.economy.income == 0
+    assert affected.economy.income == pytest.approx(
+        control.economy.income * 0.8
+    )
+    assert affected_report.population_growth is not None
+    assert control_report.population_growth is not None
+    assert affected_report.population_growth.resource_adjustment == (
+        pytest.approx(-affected_report.population_growth.base_growth * 0.2)
+    )
     assert affected.economy.population_count < control.economy.population_count
+
+
+def test_default_water_effect_uses_twenty_percent_penalty() -> None:
+    effect = next(
+        item
+        for item in default_industrial_effects()
+        if item.id == "freshwater_population_growth"
+    )
+
+    assert effect.formula == ("-target * resources.fresh_water.deficit * 0.2")
 
 
 def test_one_formula_is_applied_independently_to_multiple_targets() -> None:

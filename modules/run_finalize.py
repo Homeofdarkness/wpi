@@ -55,6 +55,73 @@ def print_budget_report(report: SkipMoveReport) -> None:
     logger.info(text)
 
 
+def _people(value: float | int, *, signed: bool = False) -> str:
+    rounded = round(float(value))
+    prefix = "+" if signed and rounded > 0 else ""
+    return f"{prefix}{rounded:,}".replace(",", " ") + " чел."
+
+
+def render_population_growth_report(report: SkipMoveReport) -> str:
+    """Render every factor used to form the turn's population change."""
+    growth = report.population_growth
+    if growth is None:
+        return "ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ\nНет данных"
+
+    number_lines = [
+        ("Население до хода", _people(growth.population_before)),
+        ("Базовый прирост", _people(growth.base_growth)),
+        (
+            "Поправка формул ресурсов",
+            _people(growth.resource_adjustment, signed=True),
+        ),
+        (
+            "Прирост после ресурсов",
+            _people(growth.growth_after_resources),
+        ),
+    ]
+    factor_lines = [
+        ("Коэффициент обеспеченности ТЖН", growth.goods_factor),
+        ("Коэффициент стабильности", growth.stability_factor),
+        ("Коэффициент довольства", growth.contentment_factor),
+        ("Коэффициент многодетности", growth.child_policy_factor),
+        ("Коэффициент продовольствия", growth.food_security_factor),
+        ("Коэффициент упадка общества", growth.social_decline_factor),
+        ("Коэффициент разнообразия", growth.food_diversity_factor),
+        ("Совокупный коэффициент", growth.total_factor),
+    ]
+    result_lines = [
+        ("Итоговый расчётный прирост", _people(growth.final_growth)),
+        ("Убыль по УНЧС", _people(-growth.decline_deaths)),
+        ("Смерти от недоедания", _people(-growth.underfeed_deaths)),
+        (
+            "Чистое изменение населения",
+            _people(growth.net_change, signed=True),
+        ),
+        ("Население после хода", _people(growth.population_after)),
+    ]
+    width = max(
+        len(label)
+        for label, _ in (*number_lines, *factor_lines, *result_lines)
+    )
+    lines = [f"ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ ({growth.turn_months} МЕСЯЦА)"]
+    lines.extend(
+        f"{label:<{width}} : {value}" for label, value in number_lines
+    )
+    lines.extend(
+        f"{label:<{width}} : ×{value:.4f}" for label, value in factor_lines
+    )
+    lines.extend(
+        f"{label:<{width}} : {value}" for label, value in result_lines
+    )
+    return "\n".join(lines)
+
+
+def print_population_growth_report(report: SkipMoveReport) -> None:
+    text = render_population_growth_report(report)
+    print(text)
+    logger.info(text)
+
+
 def print_final_state(state: WorldState) -> None:
     print("Стата - ")
     for section in (

@@ -35,6 +35,7 @@ from functions.time_models import MONTH_YEARS, TURN_MONTHS, TURN_YEARS
 from modules.skip_move_rules import BasicSkipMoveRules, SkipMoveRules
 from modules.skip_move_types import (
     CalculationResults,
+    PopulationGrowthBreakdown,
     SkipMoveContext,
     SkipMoveReport,
     TurnLedger,
@@ -68,6 +69,11 @@ class TurnEngine:
     rng: Generator = field(default_factory=np.random.default_rng)
     last_report: SkipMoveReport | None = field(default=None, init=False)
     resource_effect_wastes: float = field(default=0.0, init=False)
+    population_growth_breakdown: PopulationGrowthBreakdown | None = field(
+        default=None,
+        init=False,
+    )
+    _base_population_growth: float = field(default=0.0, init=False)
     _effect_bindings: list[tuple[IndustrialEffect, ResolvedEffectTarget]] = (
         field(default_factory=list, init=False)
     )
@@ -84,8 +90,10 @@ class TurnEngine:
         self.state.industry.recalculate_derived_fields()
         self.state.inner_politics.recalculate_derived_fields()
         self.resource_effect_wastes = 0.0
+        self.population_growth_breakdown = None
         self.state.industry.last_effects = []
         economy = self.state.economy
+        self._base_population_growth = float(economy.income or 0.0)
         budget_before = float(economy.current_budget)
         logistic_wastes = self._logistic_wastes()
         results = self._prepare_calculations(logistic_wastes)
@@ -516,25 +524,41 @@ class TurnEngine:
         economy = self.state.economy
         agriculture_state = self.state.agriculture
         politics = self.state.inner_politics
-        multipliers = (
-            industry.goods_coefficient(self.state.industry.tvr1),
-            stability_coefficient(
-                politics.poor_level,
-                politics.jobless_level,
-                sum(economy.med_wastes),
-                economy.population_count,
-            )
-            * results.contentment_coefficient_1
-            * (0.015 * politics.many_children_propoganda + 1),
-            agriculture_income_factor(agriculture_state.food_security),
-            social_decline_income_factor(politics.society_decline),
-            food_diversity_income_factor(agriculture_state.food_diversity),
+        population_before = int(economy.population_count)
+        growth_after_resources = float(economy.income or 0.0)
+        goods_factor = industry.goods_coefficient(self.state.industry.tvr1)
+        stability_factor = stability_coefficient(
+            politics.poor_level,
+            politics.jobless_level,
+            sum(economy.med_wastes),
+            economy.population_count,
         )
+        contentment_factor = results.contentment_coefficient_1
+        child_policy_factor = 0.015 * politics.many_children_propoganda + 1
+        food_security_factor = agriculture_income_factor(
+            agriculture_state.food_security
+        )
+        social_decline_factor = social_decline_income_factor(
+            politics.society_decline
+        )
+        food_diversity_factor = food_diversity_income_factor(
+            agriculture_state.food_diversity
+        )
+        multipliers = (
+            goods_factor,
+            stability_factor,
+            contentment_factor,
+            child_policy_factor,
+            food_security_factor,
+            social_decline_factor,
+            food_diversity_factor,
+        )
+        economy.income = growth_after_resources
         for multiplier in multipliers:
             economy.income *= multiplier
 
         population_after_decline = round(
-            economy.population_count
+            population_before
             * population_decrement_factor(economy.decrement_coefficient)
         )
         population_with_growth = population_after_decline + round(
@@ -546,7 +570,28 @@ class TurnEngine:
             agriculture_state.biome_richness,
             rng=self.rng,
         )
-        economy.population_count = max(0, int(population_with_growth - deaths))
+        population_after = max(0, int(population_with_growth - deaths))
+        economy.population_count = population_after
+        self.population_growth_breakdown = PopulationGrowthBreakdown(
+            turn_months=TURN_MONTHS,
+            population_before=population_before,
+            base_growth=self._base_population_growth,
+            resource_adjustment=(
+                growth_after_resources - self._base_population_growth
+            ),
+            growth_after_resources=growth_after_resources,
+            goods_factor=goods_factor,
+            stability_factor=stability_factor,
+            contentment_factor=contentment_factor,
+            child_policy_factor=child_policy_factor,
+            food_security_factor=food_security_factor,
+            social_decline_factor=social_decline_factor,
+            food_diversity_factor=food_diversity_factor,
+            final_growth=float(economy.income),
+            decline_deaths=population_before - population_after_decline,
+            underfeed_deaths=deaths,
+            population_after=population_after,
+        )
 
     def _resolve_industrial_resources(self) -> None:
         self._advance_industrial_resources()
@@ -1005,6 +1050,7 @@ class TurnEngine:
             budget_final=float(budget_after_boost),
             ledger=ledger,
             probabilities=self.state.probabilities.model_copy(deep=True),
+            population_growth=self.population_growth_breakdown,
         )
 
     def _apply_credit_if_needed(self) -> tuple[bool, float | None, float]:

@@ -81,6 +81,44 @@ class CalculationResults:
 
 
 @dataclass(frozen=True)
+class PopulationGrowthBreakdown:
+    """Auditable demographic inputs and results for one resolved turn."""
+
+    turn_months: int
+    population_before: int
+    base_growth: float
+    resource_adjustment: float
+    growth_after_resources: float
+    goods_factor: float
+    stability_factor: float
+    contentment_factor: float
+    child_policy_factor: float
+    food_security_factor: float
+    social_decline_factor: float
+    food_diversity_factor: float
+    final_growth: float
+    decline_deaths: int
+    underfeed_deaths: int
+    population_after: int
+
+    @property
+    def total_factor(self) -> float:
+        return (
+            self.goods_factor
+            * self.stability_factor
+            * self.contentment_factor
+            * self.child_policy_factor
+            * self.food_security_factor
+            * self.social_decline_factor
+            * self.food_diversity_factor
+        )
+
+    @property
+    def net_change(self) -> int:
+        return self.population_after - self.population_before
+
+
+@dataclass(frozen=True)
 class SkipMoveContext:
     state: WorldState
     waste: float
@@ -127,3 +165,4 @@ class SkipMoveReport:
     budget_final: float | None = None
     ledger: TurnLedger | None = None
     probabilities: ProbabilityStats | None = None
+    population_growth: PopulationGrowthBreakdown | None = None

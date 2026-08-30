@@ -150,7 +150,7 @@ effects:
       - resource: fresh_water
     targets:
       - population_growth
-    formula: -target * resources.fresh_water.deficit
+    formula: -target * resources.fresh_water.deficit * 0.2
   - id: construction_infrastructure_expenses
     dependencies:
       - group: construction

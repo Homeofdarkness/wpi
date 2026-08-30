@@ -161,6 +161,9 @@ def test_creator_cli_can_run_a_real_turn_and_show_effect_results(
         "country_after_turn_industry_settings.txt"
     ).read_text(encoding="utf-8")
     console = capsys.readouterr().out
+    assert "ОТЧЁТ БЮДЖЕТА" in country_text
+    assert "ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ (3 МЕСЯЦА)" in country_text
+    assert "Поправка формул ресурсов" in country_text
     assert "ПРОИЗВОДСТВО ЗА ХОД" in country_text
     assert "ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ" in country_text
     assert "freshwater_society:" in country_text
@@ -280,7 +283,7 @@ def test_edem_industry_configuration_resolves_a_full_first_turn():
         rng=np.random.default_rng(20260718),
     ).run()
 
-    assert country.industry.last_extracted[ResourceType.IRON] > 2_000
+    assert country.industry.last_extracted[ResourceType.IRON] > 1_000
     assert len(country.industry.last_production) == 2
     assert country.industry.production_rules[0].turns_remaining == 5
     assert country.industry.production_rules[1].turns_remaining == 3

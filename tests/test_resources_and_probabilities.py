@@ -6,6 +6,7 @@ import pytest
 from functions.probability_models import (
     half_year_chance,
     industrial_accident_chance,
+    turn_chance,
 )
 from functions.resource_models import (
     GROUP_PROFILES,
@@ -63,9 +64,9 @@ def configure_iron_extraction(bundle) -> None:
     )
 
 
-def test_turn_duration_is_six_months():
-    assert TURN_YEARS == 0.5
-    assert TURN_MONTHS == 6
+def test_turn_duration_is_three_months():
+    assert TURN_YEARS == 0.25
+    assert TURN_MONTHS == 3
 
 
 def test_national_extraction_capacity_comes_from_existing_spending():
@@ -227,9 +228,11 @@ def test_specialist_capacity_matches_population_education_model():
     assert specialist_capacity(1_000_000, 100, 100) <= 150_000
 
 
-def test_half_year_hazard_and_accident_risk_are_monotonic():
+def test_quarter_hazard_and_accident_risk_are_monotonic():
     assert half_year_chance(0) == 0
-    assert half_year_chance(0.2) == pytest.approx((1 - np.exp(-0.1)) * 100)
+    expected = (1 - np.exp(-0.05)) * 100
+    assert turn_chance(0.2) == pytest.approx(expected)
+    assert half_year_chance(0.2) == pytest.approx(expected)
     safe = industrial_accident_chance(40, 99, 95, 0, 100)
     unsafe = industrial_accident_chance(100, 60, 20, 0.7, 10)
     assert 0 < safe < unsafe < 100
@@ -361,7 +364,7 @@ def test_worker_allocations_cannot_exceed_available_pool():
     assert 0 < extracted < full_extraction
 
 
-def test_debt_interest_uses_half_year_and_credit_increases_debt():
+def test_debt_interest_uses_quarter_and_credit_increases_debt():
     with_debt = make_basic_bundle(budget=1_000)
     without_debt = make_basic_bundle(budget=1_000)
     with_debt.economy.public_debt = 100
@@ -370,9 +373,9 @@ def test_debt_interest_uses_half_year_and_credit_increases_debt():
     debt_report = make_engine(with_debt).run()
     base_report = make_engine(without_debt).run()
 
-    assert debt_report.debt_interest == pytest.approx(5)
+    assert debt_report.debt_interest == pytest.approx(2.5)
     assert debt_report.total_wastes == pytest.approx(
-        base_report.total_wastes + 5
+        base_report.total_wastes + 2.5
     )
 
     credit_bundle = make_basic_bundle(budget=-10_000)
@@ -412,4 +415,4 @@ def test_new_social_fields_roundtrip_and_probability_output():
     assert parsed.social_mobility == 64
     assert parsed.war_fatigue == 18
     assert "НАДЁЖНОСТЬ СИСТЕМ" in probability_text
-    assert "ВЕРОЯТНОСТИ СОБЫТИЙ ЗА ПОЛГОДА" in probability_text
+    assert "ВЕРОЯТНОСТИ СОБЫТИЙ ЗА КВАРТАЛ" in probability_text

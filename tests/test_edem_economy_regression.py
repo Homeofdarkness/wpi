@@ -34,8 +34,8 @@ def test_edem_turn_does_not_collapse_the_economy() -> None:
     assert "Обеспеченность едой - 107.6%" not in str(state.agriculture)
     assert report.tax_income > 2_500
     assert report.trade_income == pytest.approx(197.9780096)
-    assert state.economy.income == pytest.approx(180_668, rel=0.01)
+    assert state.economy.income == pytest.approx(90_334, rel=0.01)
     assert report.resource_effect_wastes < 0
     assert abs(report.money_income) < 700
     assert report.credit_taken is False
-    assert report.budget_final == pytest.approx(656.2257595445233)
+    assert report.budget_final == pytest.approx(638.9258055298294)

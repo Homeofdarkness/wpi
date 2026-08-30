@@ -7,6 +7,10 @@ from unittest.mock import patch
 import numpy as np
 
 from modules.mode_spec import GameMode, get_mode
+from modules.run_finalize import (
+    render_budget_report,
+    render_population_growth_report,
+)
 from modules.run_skip_move import TurnEngine
 from modules.run_start_skip import InputMode, StatsInput
 from modules.skip_move_types import SkipMoveReport, WorldState
@@ -131,7 +135,10 @@ def advance_basic_country(
     return [engine.run() for _ in range(turns)]
 
 
-def render_country(country: WorldState) -> str:
+def render_country(
+    country: WorldState,
+    report: SkipMoveReport | None = None,
+) -> str:
     sections = (
         country.economy,
         country.industry,
@@ -139,13 +146,24 @@ def render_country(country: WorldState) -> str:
         country.inner_politics,
         country.probabilities,
     )
-    result = "Стата -\n" + "\n".join(str(section) for section in sections)
+    result_parts = []
+    if report is not None:
+        result_parts.extend(
+            (
+                render_budget_report(report),
+                render_population_growth_report(report),
+            )
+        )
+    result_parts.append(
+        "Стата -\n" + "\n".join(str(section) for section in sections)
+    )
     reports = []
     if country.industry.last_production:
         reports.append(country.industry.render_production_results())
     reports.append(country.industry.render_effect_results())
     reports_text = "\n\n".join(reports)
-    return f"{result}\n\nОтдельный отчёт промышленности -\n{reports_text}\n"
+    result_parts.append(f"Отдельный отчёт промышленности -\n{reports_text}")
+    return "\n\n".join(result_parts) + "\n"
 
 
 def main() -> None:
@@ -194,9 +212,13 @@ def main() -> None:
         parser.error("--turns не может быть отрицательным")
 
     country = create_basic_country(args.input)
-    advance_basic_country(country, turns=args.turns, seed=args.seed)
+    reports = advance_basic_country(country, turns=args.turns, seed=args.seed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(render_country(country), encoding="utf-8")
+    last_report = reports[-1] if reports else None
+    args.output.write_text(
+        render_country(country, last_report),
+        encoding="utf-8",
+    )
     settings_output = args.industry_settings_output or args.output.with_name(
         f"{args.output.stem}_industry_settings.txt"
     )
