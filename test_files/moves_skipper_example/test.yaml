@@ -1,0 +1,184 @@
+schema_version: 2
+resources:
+  wood:
+    name: Дерево
+    group: forestry
+    availability: 90.0
+    quality: 85.0
+    consumption: 100.0
+    storage_capacity: 10000.0
+  fresh_water:
+    name: Пресная вода
+    group: fresh_water
+    availability: 95.0
+    quality: 90.0
+    consumption: 400.0
+    storage_capacity: 30000.0
+  copper:
+    name: Медь
+    group: nonferrous
+    availability: 75.0
+    quality: 80.0
+    consumption: 0.0
+    storage_capacity: 6000.0
+  aluminum:
+    name: Алюминий
+    group: strategic_metals
+    availability: 78.0
+    quality: 78.0
+    consumption: 0.0
+    storage_capacity: 8000.0
+  iron:
+    name: Железо
+    group: ferrous
+    availability: 82.0
+    quality: 78.0
+    consumption: 75.0
+    storage_capacity: 25000.0
+  sulfur:
+    name: Сера
+    group: chemical
+    availability: 80.0
+    quality: 80.0
+    consumption: 25.0
+    storage_capacity: 7000.0
+  silicon:
+    name: Кремний
+    group: chemical
+    availability: 85.0
+    quality: 82.0
+    consumption: 34.0
+    storage_capacity: 10000.0
+  basic_building_materials:
+    name: Базовые стройматериалы
+    group: construction
+    availability: 100.0
+    quality: 100.0
+    consumption: 85.0
+    storage_capacity: 10000.0
+  expensive_building_materials:
+    name: Дорогие стройматериалы
+    group: construction
+    availability: 100.0
+    quality: 100.0
+    consumption: 25.0
+    storage_capacity: 4000.0
+  coal:
+    name: Уголь
+    group: solid_fuel
+    availability: 90.0
+    quality: 75.0
+    consumption: 85.0
+    storage_capacity: 16000.0
+  oil:
+    name: Нефть
+    group: hydrocarbons
+    availability: 75.0
+    quality: 85.0
+    consumption: 200.0
+    storage_capacity: 20000.0
+  gas:
+    name: Газ
+    group: hydrocarbons
+    availability: 80.0
+    quality: 88.0
+    consumption: 200.0
+    storage_capacity: 25000.0
+  slag:
+    name: Шлак
+    group: recycling
+    availability: 100.0
+    quality: 100.0
+    consumption: 0.0
+    storage_capacity: 8000.0
+extraction:
+  forestry:
+    intensity: 70.0
+    priority: 1.0
+  fresh_water:
+    intensity: 90.0
+    priority: 3.0
+  strategic_metals:
+    intensity: 60.0
+    priority: 1.0
+  nonferrous:
+    intensity: 60.0
+    priority: 1.0
+  ferrous:
+    intensity: 85.0
+    priority: 2.0
+  chemical:
+    intensity: 70.0
+    priority: 1.0
+  solid_fuel:
+    intensity: 75.0
+    priority: 2.0
+  hydrocarbons:
+    intensity: 90.0
+    priority: 3.0
+production:
+  - id: basic_building_materials
+    name: Базовые стройматериалы
+    active: true
+    batches: 150.0
+    turns: 5
+    inputs:
+      iron: 2.0
+      coal: 1.0
+      silicon: 0.5
+    outputs:
+      basic_building_materials: 2.5
+    byproducts:
+      slag: 0.4
+  - id: expensive_building_materials
+    name: Дорогие стройматериалы
+    active: true
+    batches: 40.0
+    turns: 3
+    inputs:
+      basic_building_materials: 2.0
+      copper: 0.5
+      aluminum: 0.5
+    outputs:
+      expensive_building_materials: 1.0
+    byproducts:
+      slag: 0.2
+effects:
+  - id: freshwater_population_growth
+    dependencies:
+      - resource: fresh_water
+    targets:
+      - population_growth
+    formula: >-
+      -target * resources.fresh_water.deficit
+  - id: construction_infrastructure_expenses
+    dependencies:
+      - group: construction
+    targets:
+      - infrastructure_expenses
+    formula: >-
+      target * (0.4 * groups.construction.deficit - min(0.25 * groups.construction.surplus, 0.2))
+  - id: hydrocarbons_transport
+    dependencies:
+      - group: hydrocarbons
+    targets:
+      - logistic
+      - trade_efficiency
+    formula: >-
+      -target * groups.hydrocarbons.deficit * 0.08
+  - id: freshwater_society
+    dependencies:
+      - resource: fresh_water
+    targets:
+      - contentment
+      - food_diversity
+      - population_epidemic_chance
+    formula: >-
+      -target * resources.fresh_water.deficit * 0.05
+  - id: coal_society
+    dependencies:
+        - resource: coal
+    targets:
+        - contentment
+    formula: >-
+      -target * resources.coal.deficit * 0.1

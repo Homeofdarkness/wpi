@@ -1,0 +1,74 @@
+schema_version = 3
+
+[resources.basic_building_materials]
+name = "Базовые стройматериалы"
+group = "construction"
+availability = 100.0
+quality = 100.0
+consumption_per_month = 10.0
+storage_capacity = 1000.0
+
+[resources.silicon]
+name = "Кремний"
+group = "chemical"
+availability = 80.0
+quality = 75.0
+consumption_per_month = 0.0
+storage_capacity = 500.0
+
+[resources.reinforced_glass]
+name = "Армированное стекло"
+group = "construction"
+availability = 72.0
+quality = 81.0
+consumption_per_month = 20.0
+storage_capacity = 300.0
+
+[resources.slag]
+name = "Шлак"
+group = "recycling"
+availability = 100.0
+quality = 100.0
+consumption_per_month = 0.0
+storage_capacity = 200.0
+
+[extraction.silicon]
+intensity = 60.0
+priority = 1
+
+[[production]]
+id = "reinforced_glass_production"
+name = "Производство армированного стекла"
+active = true
+batches = 20.0
+months = 24
+inputs = { basic_building_materials = 2.0, silicon = 0.5 }
+outputs = { reinforced_glass = 1.0 }
+byproducts = { slag = 0.1 }
+
+[[effects]]
+id = "construction_infrastructure_expenses"
+dependencies = [{ group = "construction" }]
+targets = ["infrastructure_expenses"]
+formula = "target * (0.4 * groups.construction.deficit - min(0.25 * groups.construction.surplus, 0.2))"
+
+[[effects]]
+id = "reinforced_glass_efficiency"
+dependencies = [{ resource = "reinforced_glass" }, { group = "construction" }]
+targets = ["logistic", "civil_efficiency"]
+formula = "target * (min(0.03 * resources.reinforced_glass.surplus, 0.15) - 0.08 * groups.construction.deficit)"
+
+[[effects]]
+id = "reinforced_glass_safety"
+dependencies = [{ resource = "reinforced_glass" }]
+targets = ["industrial_accident_chance"]
+formula = "target * (0.2 * resources.reinforced_glass.deficit - min(0.1 * resources.reinforced_glass.surplus, 0.3))"
+
+
+СОСТОЯНИЕ РЕСУРСОВ
+Ресурс                                                | Склад     | Добыто | Дефицит
+----------------------------------------------------- | --------- | ------ | -------
+Базовые стройматериалы [basic_building_materials]     | 100 / 1000 | 0     | 0
+Кремний [silicon]                                     | 50 / 500   | 0     | 0
+Армированное стекло [reinforced_glass]                | 25 / 300   | 0     | 0
+Шлак [slag]                                           | 0 / 200    | 0     | 0
