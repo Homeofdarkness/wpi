@@ -269,8 +269,13 @@ class ResourceState(pydantic.BaseModel):
             shortage=requested - actual,
         )
 
-    def apply_storage_preservation(self, percent: float) -> float:
-        preserved = min(max(percent, 0.0), 100.0) / 100
+    def apply_storage_preservation(
+        self,
+        percent: float,
+        reference_scale: float = 1.0,
+    ) -> float:
+        reference_retention = min(max(percent, 0.0), 100.0) / 100
+        preserved = reference_retention ** max(float(reference_scale), 0.0)
         lost = self.stockpile * (1 - preserved)
         self.stockpile -= lost
         return lost
@@ -356,7 +361,7 @@ class ExtractionOperation(pydantic.BaseModel):
 
     target: str = pydantic.Field(..., pattern=r"^[a-z0-9_]+$")
     intensity: float = pydantic.Field(100.0, ge=0, le=100)
-    priority: float = pydantic.Field(1.0, gt=0)
+    priority: int = pydantic.Field(1, ge=1)
 
     @property
     def target_key(self) -> str:
@@ -378,7 +383,19 @@ class ResourceRegistration(pydantic.BaseModel):
     storage_capacity: float = pydantic.Field(0.0, ge=0)
     accessibility: float = pydantic.Field(100.0, ge=0, le=100)
     quality: float = pydantic.Field(100.0, ge=0, le=100)
-    consumption_per_turn: float = pydantic.Field(0.0, ge=0)
+    consumption_per_month: float = pydantic.Field(
+        0.0,
+        ge=0,
+        validation_alias=pydantic.AliasChoices(
+            "consumption_per_month",
+            "consumption_per_turn",
+        ),
+    )
+
+    @property
+    def consumption_per_turn(self) -> float:
+        """Deprecated compatibility alias for the monthly consumption."""
+        return self.consumption_per_month
 
     @pydantic.model_validator(mode="after")
     def validate_registration(self) -> ResourceRegistration:

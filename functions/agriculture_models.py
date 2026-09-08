@@ -249,10 +249,12 @@ def food_supplies(
     food_surplus: float,
     overstock_percent: float,
     storages_upkeep: float,
+    reference_scale: float = 1.0,
 ) -> float:
     available_storage = storages_upkeep * 39
+    threshold = 400 * max(float(reference_scale), 0.0)
     new_supplies = current_supplies + max(
-        food_surplus - 400,
+        food_surplus - threshold,
         food_surplus * overstock_percent / 100,
     )
     return min(new_supplies, available_storage)
@@ -264,23 +266,26 @@ def population_underfeed(
     biome_richness: float,
     death_probability: float = 0.36,
     rng: Generator | None = None,
+    reference_scale: float = 1.0,
 ) -> int:
     shortage = max(0.0, -food_balance)
     if shortage <= 0:
         return 0
-    total_need = population_count / 10000.0 * 2.5
+    scale = max(float(reference_scale), 0.0)
+    total_need = population_count / 10000.0 * 2.5 * scale
     if total_need <= 0:
         return 0
     shortage_fraction = min(1.0, shortage / total_need)
     at_risk = int(math.ceil(population_count * shortage_fraction))
     climate_reduction = 0.02 * (biome_richness / 10.0)
-    effective_probability = float(
+    reference_probability = float(
         np.clip(
             death_probability * (1.0 - climate_reduction),
             0.12,
             0.36,
         )
     )
+    effective_probability = 1 - (1 - reference_probability) ** scale
     generator = rng or np.random.default_rng()
     deaths = int(generator.binomial(at_risk, effective_probability))
     survival_reduction = 0.05 * (biome_richness / 10.0)

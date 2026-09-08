@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,7 @@ from create_basic_country import (
 from create_basic_country import (
     main as create_country_main,
 )
+from functions.time_models import TURN_MONTHS, TURN_SCALE, format_months
 from modules.mode_spec import GameMode, get_mode
 from modules.run_skip_move import TurnEngine
 from modules.run_start_skip import StatsInput
@@ -29,7 +31,7 @@ OUTPUT_EXAMPLE = (
 SETTINGS_EXAMPLE = (
     Path(__file__).parents[1]
     / "test_files"
-    / "edem_country_industry_settings_example.txt"
+    / "edem_country_industry_settings_example.toml"
 )
 
 
@@ -51,24 +53,24 @@ def test_file_creator_reads_answers_and_human_industry_configuration():
         == 8_000
     )
     source = FIXTURE.read_text(encoding="utf-8")
-    assert "fresh_water: {intensity: 90, priority: 3}" in source
-    assert "schema_version: 2" in source
-    assert "targets: [logistic, trade_efficiency]" in source
+    assert "[extraction.fresh_water]" in source
+    assert "schema_version = 3" in source
+    assert 'targets = ["logistic", "trade_efficiency"]' in source
     assert "population_epidemic_chance" in source
     assert len(country.industry.effects) == 4
 
 
-def test_country_creator_reads_and_wraps_an_industry_block(monkeypatch):
+def test_country_creator_reads_marker_free_toml(monkeypatch):
     answers = iter(
         (
-            "schema_version: 2",
-            "resources: {}",
-            "extraction:",
-            "  ferrous:",
-            "    intensity: 80",
-            "    priority: 2",
-            "production: []",
-            "effects: []",
+            "schema_version = 3",
+            "resources = {}",
+            "production = []",
+            "effects = []",
+            "[extraction.ferrous]",
+            "intensity = 80",
+            "priority = 2",
+            "",
             "",
         )
     )
@@ -77,9 +79,9 @@ def test_country_creator_reads_and_wraps_an_industry_block(monkeypatch):
     configuration = StatsInput._read_creator_industry_configuration()
     normalized = StatsInput._normalize_industry_configuration(configuration)
 
-    assert normalized.startswith("НАСТРОЙКА ПРОМЫШЛЕННОСТИ YAML\n")
-    assert "  ferrous:\n    intensity: 80" in normalized
-    assert normalized.endswith("КОНЕЦ НАСТРОЙКИ ПРОМЫШЛЕННОСТИ")
+    assert normalized.startswith("schema_version = 3\n")
+    assert "[extraction.ferrous]\nintensity = 80" in normalized
+    assert "НАСТРОЙКА ПРОМЫШЛЕННОСТИ" not in normalized
 
 
 def test_created_country_output_is_readable_and_has_control_section():
@@ -106,7 +108,7 @@ def test_creator_cli_keeps_effect_visible_in_output_and_settings(
     capsys,
 ) -> None:
     output = tmp_path / "country.txt"
-    settings = tmp_path / "industry_settings.txt"
+    settings = tmp_path / "industry_settings.toml"
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -129,7 +131,7 @@ def test_creator_cli_keeps_effect_visible_in_output_and_settings(
     assert "food_diversity" in country_text
     assert "population_epidemic_chance" in country_text
     assert "ожидает расчёта хода" in country_text
-    assert "id: freshwater_society" in settings_text
+    assert 'id = "freshwater_society"' in settings_text
     assert "Эффекты промышленности: 4" in console
     assert "добавьте --turns 1" in console
 
@@ -158,19 +160,29 @@ def test_creator_cli_can_run_a_real_turn_and_show_effect_results(
 
     country_text = output.read_text(encoding="utf-8")
     settings_text = output.with_name(
-        "country_after_turn_industry_settings.txt"
+        "country_after_turn_industry_settings.toml"
     ).read_text(encoding="utf-8")
     console = capsys.readouterr().out
     assert "ОТЧЁТ БЮДЖЕТА" in country_text
-    assert "ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ (3 МЕСЯЦА)" in country_text
+    turn_label = format_months(TURN_MONTHS, uppercase=True)
+    assert f"ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ ({turn_label})" in country_text
     assert "Поправка формул ресурсов" in country_text
     assert "ПРОИЗВОДСТВО ЗА ХОД" in country_text
     assert "ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ" in country_text
     assert "freshwater_society:" in country_text
     assert "infrastructure_expenses" in country_text
-    assert "932.8 -> 746.2 (-186.6)" in country_text
+    infrastructure = 932.8 * TURN_SCALE
+    match = re.search(
+        r"infrastructure_expenses\s+: "
+        r"(-?\d+\.\d) -> (-?\d+\.\d) \(([+-]\d+\.\d)\)",
+        country_text,
+    )
+    assert match is not None
+    before, after, adjustment = map(float, match.groups())
+    assert before == pytest.approx(infrastructure, abs=0.1)
+    assert after == pytest.approx(before + adjustment, abs=0.11)
     assert "ожидает расчёта хода" not in country_text
-    assert "turns: 5" in settings_text
+    assert f"months = {36 - TURN_MONTHS}" in settings_text
     assert "Рассчитано ходов: 1" in console
 
 
@@ -201,8 +213,12 @@ def test_file_driven_creator_supports_multiple_real_turns() -> None:
     reports = advance_basic_country(country, turns=2, seed=1)
 
     assert len(reports) == 2
-    assert country.industry.production_rules[0].turns_remaining == 4
-    assert country.industry.production_rules[1].turns_remaining == 2
+    assert country.industry.production_rules[0].turns_remaining == (
+        pytest.approx(6 - 2 * TURN_SCALE)
+    )
+    assert country.industry.production_rules[1].turns_remaining == (
+        pytest.approx(4 - 2 * TURN_SCALE)
+    )
     assert len(country.industry.last_effects) == 7
     assert (
         "ожидает расчёта хода" not in country.industry.render_effect_results()
@@ -214,26 +230,25 @@ def test_custom_resource_and_effect_survive_creator_turn_and_output(
 ) -> None:
     source = FIXTURE.read_text(encoding="utf-8")
     source = source.replace(
-        "resources:\n  wood:\n",
-        "resources:\n"
-        "  moon_dust:\n"
-        "    name: Лунная пыль\n"
-        "    group: unique\n"
-        "    availability: 75\n"
-        "    quality: 85\n"
-        "    consumption: 20\n"
-        "    storage_capacity: 100\n"
-        "  wood:\n",
+        "[resources.wood]\n",
+        "[resources.moon_dust]\n"
+        'name = "Лунная пыль"\n'
+        'group = "unique"\n'
+        "availability = 75.0\n"
+        "quality = 85.0\n"
+        "consumption_per_month = 20.0\n"
+        "storage_capacity = 100.0\n\n"
+        "[resources.wood]\n",
         1,
     )
     source = source.replace(
-        "КОНЕЦ НАСТРОЙКИ ПРОМЫШЛЕННОСТИ\n",
-        "  - id: moon_dust_society\n"
-        "    dependencies:\n"
-        "      - resource: moon_dust\n"
-        "    targets: [contentment, food_diversity]\n"
-        "    formula: -target * resources.moon_dust.deficit * 0.1\n"
-        "КОНЕЦ НАСТРОЙКИ ПРОМЫШЛЕННОСТИ\n",
+        "\nСОСТОЯНИЕ РЕСУРСОВ\n",
+        "\n[[effects]]\n"
+        'id = "moon_dust_society"\n'
+        'dependencies = [{ resource = "moon_dust" }]\n'
+        'targets = ["contentment", "food_diversity"]\n'
+        'formula = "-target * resources.moon_dust.deficit * 0.1"\n\n'
+        "СОСТОЯНИЕ РЕСУРСОВ\n",
         1,
     )
     source += "Лунная пыль [moon_dust] | 0 / 100 | 0 | 0\n"
@@ -250,13 +265,15 @@ def test_custom_resource_and_effect_survive_creator_turn_and_output(
 
     custom_resource = ResourceType("moon_dust")
     assert len(reports) == 1
-    assert country.industry.resource_shortages[custom_resource] == 20
+    assert country.industry.resource_shortages[custom_resource] == (
+        pytest.approx(20 * TURN_MONTHS)
+    )
     assert country.inner_politics.contentment == 80
     assert "Лунная пыль [moon_dust]" in output
     assert "moon_dust_society:" in output
     assert "89.0 -> 80.0 (-9.0)" in output
-    assert "moon_dust:\n    name: Лунная пыль" in settings
-    assert "id: moon_dust_society" in settings
+    assert '[resources.moon_dust]\nname = "Лунная пыль"' in settings
+    assert 'id = "moon_dust_society"' in settings
     assert custom_resource in restored.resource_inventory.resources
     assert any(effect.id == "moon_dust_society" for effect in restored.effects)
 
@@ -267,7 +284,8 @@ def test_checked_in_output_example_can_be_loaded_for_the_next_turn():
     industry = IndustrialStats.from_stats_text(f"{text}\n{settings}")
 
     assert industry.active_resource_count() == 13
-    assert industry.production_rules[0].turns_remaining == 5
+    assert industry.production_rules[0].turns_remaining == pytest.approx(5.5)
+    assert "months = 33" in settings
     assert industry.resource_demands[ResourceType.IRON] == 300
     assert "{" not in text
     assert "freshwater_society:" in text
@@ -285,5 +303,9 @@ def test_edem_industry_configuration_resolves_a_full_first_turn():
 
     assert country.industry.last_extracted[ResourceType.IRON] > 1_000
     assert len(country.industry.last_production) == 2
-    assert country.industry.production_rules[0].turns_remaining == 5
-    assert country.industry.production_rules[1].turns_remaining == 3
+    assert country.industry.production_rules[0].turns_remaining == (
+        pytest.approx(6 - TURN_SCALE)
+    )
+    assert country.industry.production_rules[1].turns_remaining == (
+        pytest.approx(4 - TURN_SCALE)
+    )

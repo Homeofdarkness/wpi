@@ -3,7 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
+from functions.time_models import TURN_SCALE
 from modules.mode_spec import GameMode, get_mode
 from modules.run_skip_move import TurnEngine
 from modules.run_start_skip import InputMode, StatsInput, read_text_section
@@ -18,7 +20,7 @@ EXAMPLE_FILES = tuple(
     for name in (
         "01_economy_and_trade.txt",
         "02_industry.txt",
-        "03_industry_settings.txt",
+        "03_industry_settings.toml",
         "04_agriculture.txt",
         "05_government_control_people.txt",
     )
@@ -66,7 +68,9 @@ def test_moves_skipper_reads_current_pretty_output_and_runs_rules(
             assert lines[-1] == "```"
             lines = lines[1:-1]
         answers_list.extend(lines)
-        if path.name != "03_industry_settings.txt":
+        if path.suffix == ".toml":
+            answers_list.extend(("", ""))
+        else:
             answers_list.append("")
     answers = iter(answers_list)
     monkeypatch.setattr("builtins.input", lambda: next(answers))
@@ -92,7 +96,9 @@ def test_moves_skipper_reads_current_pretty_output_and_runs_rules(
     assert state.inner_politics.control == [80.0, 10.0, 5.0, 5.0]
     assert state.industry.last_extracted[ResourceType.IRON] > 0
     assert len(state.industry.last_production) == 2
-    assert state.industry.production_rules[0].turns_remaining == 5
+    assert state.industry.production_rules[0].turns_remaining == pytest.approx(
+        6 - TURN_SCALE
+    )
     assert {effect.target for effect in state.industry.last_effects} >= {
         "logistic",
         "trade_efficiency",

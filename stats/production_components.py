@@ -7,6 +7,7 @@ from enum import StrEnum
 
 import pydantic
 
+from functions.time_models import TURN_SCALE
 from stats.industry_components import (
     ExtractionGroup,
     ResourceType,
@@ -54,10 +55,12 @@ PRODUCTION_RECIPES: dict[ProductionRecipeId, ProductionRecipe] = {
 
 
 class ProductionRule(pydantic.BaseModel):
-    """A production transformation repeated once per turn for a duration.
+    """A production transformation with a six-month reference rate.
 
     A built-in ``recipe`` fills its resource maps automatically. A custom
     rule can instead provide ``rule_id``, ``inputs`` and ``outputs``.
+    Internally, duration is retained in legacy six-month units for backward
+    compatibility. New TOML input and output expose that duration in months.
     ``turns_remaining=None`` means the rule has no automatic expiry.
     """
 
@@ -72,7 +75,7 @@ class ProductionRule(pydantic.BaseModel):
     target_group: ExtractionGroup | None = None
     target_resource: ResourceType | None = None
     batches: float = pydantic.Field(..., ge=0)
-    turns_remaining: int | None = pydantic.Field(None, ge=0)
+    turns_remaining: float | None = pydantic.Field(None, ge=0)
     enabled: bool = True
     inputs: dict[ResourceType, float] = pydantic.Field(default_factory=dict)
     outputs: dict[ResourceType, float] = pydantic.Field(default_factory=dict)
@@ -147,11 +150,14 @@ class ProductionRule(pydantic.BaseModel):
             object.__setattr__(self, "enabled", False)
         return self
 
-    def advance_turn(self) -> None:
-        """Consume one configured turn after an execution attempt."""
+    def advance_turn(self, reference_scale: float = TURN_SCALE) -> None:
+        """Consume elapsed time measured in six-month reference turns."""
         if not self.enabled or self.turns_remaining is None:
             return
-        remaining = max(self.turns_remaining - 1, 0)
+        remaining = max(
+            self.turns_remaining - max(float(reference_scale), 0.0),
+            0.0,
+        )
         object.__setattr__(self, "turns_remaining", remaining)
         if remaining == 0:
             object.__setattr__(self, "enabled", False)
@@ -167,4 +173,4 @@ class ProductionResult:
     byproducts_produced: dict[ResourceType, float]
     rule_id: str = ""
     name: str = ""
-    turns_remaining: int | None = None
+    turns_remaining: float | None = None

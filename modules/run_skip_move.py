@@ -13,12 +13,14 @@ from functions import probability_models as probability
 from functions import production_models as production
 from functions import resource_models as resources
 from functions import trade_models as trade
+from functions.economy_models import population_growth
 from functions.income_models import (
     agriculture_factor,
     expected_infrastructure_wastes,
     inflation_factor,
     simple_stability_income_boost,
     stability_income_boost,
+    state_apparatus_stability,
 )
 from functions.society_models import (
     agriculture_income_factor,
@@ -31,7 +33,11 @@ from functions.society_models import (
     social_decline_income_factor,
     stability_coefficient,
 )
-from functions.time_models import MONTH_YEARS, TURN_MONTHS, TURN_YEARS
+from functions.time_models import (
+    MONTH_YEARS,
+    TurnCalendar,
+    default_turn_calendar,
+)
 from modules.skip_move_rules import BasicSkipMoveRules, SkipMoveRules
 from modules.skip_move_types import (
     CalculationResults,
@@ -67,6 +73,7 @@ class TurnEngine:
     mode_name: str = "basic"
     waste: float = 0.0
     rng: Generator = field(default_factory=np.random.default_rng)
+    calendar: TurnCalendar = field(default_factory=default_turn_calendar)
     last_report: SkipMoveReport | None = field(default=None, init=False)
     resource_effect_wastes: float = field(default=0.0, init=False)
     population_growth_breakdown: PopulationGrowthBreakdown | None = field(
@@ -74,6 +81,8 @@ class TurnEngine:
         init=False,
     )
     _base_population_growth: float = field(default=0.0, init=False)
+    _stability_at_turn_start: float = field(default=0.0, init=False)
+    _turn_resource_demands: dict = field(default_factory=dict, init=False)
     _effect_bindings: list[tuple[IndustrialEffect, ResolvedEffectTarget]] = (
         field(default_factory=list, init=False)
     )
@@ -87,13 +96,24 @@ class TurnEngine:
         # current primary state, not from derived values already modified by
         # the previous turn.
         self.state.economy.recalculate_derived_fields()
+        self.state.economy.income = population_growth(
+            self.state.economy.population_count,
+            years=self.calendar.years,
+        )
         self.state.industry.recalculate_derived_fields()
         self.state.inner_politics.recalculate_derived_fields()
         self.resource_effect_wastes = 0.0
         self.population_growth_breakdown = None
         self.state.industry.last_effects = []
         economy = self.state.economy
+        self._stability_at_turn_start = float(economy.stability)
         self._base_population_growth = float(economy.income or 0.0)
+        self._turn_resource_demands = {
+            resource: float(amount) * self.calendar.months
+            for resource, amount in (
+                self.state.industry.resource_demands.items()
+            )
+        }
         budget_before = float(economy.current_budget)
         logistic_wastes = self._logistic_wastes()
         results = self._prepare_calculations(logistic_wastes)
@@ -138,7 +158,7 @@ class TurnEngine:
     def _total_wastes(self, logistic_wastes: float) -> float:
         economy = self.state.economy
         agriculture_state = self.state.agriculture
-        return float(
+        reference_wastes = float(
             sum(economy.med_wastes)
             + sum(economy.gov_wastes)
             + sum(economy.war_wastes)
@@ -148,8 +168,11 @@ class TurnEngine:
             + self.waste
             + agriculture_state.expected_wastes
             - agriculture_state.income_from_resources
-            + self._debt_interest()
             + self._forced_labor_cost()
+        )
+        return float(
+            self.calendar.scale_flow(reference_wastes)
+            + self._debt_interest()
             + self.resource_effect_wastes
         )
 
@@ -159,7 +182,7 @@ class TurnEngine:
             economy.public_debt
             * economy.annual_interest_rate
             / 100
-            * TURN_YEARS
+            * self.calendar.years
         )
 
     def _forced_labor_cost(self) -> float:
@@ -202,15 +225,18 @@ class TurnEngine:
             + politics.contentment * 0.3
             - politics.poor_level * 0.2
         )
-        adjustment = 0.5 * TURN_YEARS
+        adjustment = self.calendar.scale_progress(0.25)
         workforce.health += (health_target - workforce.health) * adjustment
         workforce.social_support += (
             social_target - workforce.social_support
         ) * adjustment
 
-    def _worker_allocations(self) -> dict[str, tuple[int, int, int]]:
+    def _worker_allocations(
+        self,
+        capacities: dict[str, float] | None = None,
+    ) -> dict[str, tuple[int, int, int]]:
         """Allocate workers by automatically calculated rule capacity."""
-        capacities = self._extraction_capacities()
+        capacities = capacities or self._extraction_capacities()
         total_capacity = sum(capacities.values())
         if total_capacity <= 0:
             return {}
@@ -237,9 +263,24 @@ class TurnEngine:
         }
 
     def _extraction_capacities(self) -> dict[str, float]:
-        operations = self._active_extraction_operations()
-        total_priority = sum(operation.priority for operation in operations)
-        if total_priority <= 0:
+        operations = [
+            operation
+            for operation in self._active_extraction_operations()
+            if self._extraction_targets(operation)
+        ]
+        lowest_priority = max(
+            (operation.priority for operation in operations),
+            default=1,
+        )
+        priority_weights = {
+            operation.target_key: resources.extraction_priority_weight(
+                operation.priority,
+                lowest_priority,
+            )
+            for operation in operations
+        }
+        total_priority_weight = sum(priority_weights.values())
+        if total_priority_weight <= 0:
             return {}
         extraction_spending = self.rules.get_resource_extraction_budget(
             self._ctx()
@@ -250,8 +291,8 @@ class TurnEngine:
         return {
             operation.target_key: (
                 national_capacity
-                * operation.priority
-                / total_priority
+                * priority_weights[operation.target_key]
+                / total_priority_weight
                 * operation.intensity
                 / 100
             )
@@ -352,12 +393,14 @@ class TurnEngine:
                 industry_state.standardization,
                 forced_share,
                 safety,
+                years=self.calendar.years,
             )
         )
         stats.supply_disruption_chance = probability.supply_disruption_chance(
             stats.logistics_integrity,
             politics.regional_separatism,
             politics.war_fatigue,
+            years=self.calendar.years,
         )
         stats.population_epidemic_chance = (
             probability.population_epidemic_chance(
@@ -365,6 +408,7 @@ class TurnEngine:
                 politics.poor_level,
                 agriculture_state.food_security,
                 politics.information_quality,
+                years=self.calendar.years,
             )
         )
         stats.agricultural_epidemic_chance = (
@@ -372,11 +416,13 @@ class TurnEngine:
                 agriculture_state.agriculture_deceases,
                 agriculture_state.food_diversity,
                 agriculture_state.agriculture_efficiency,
+                years=self.calendar.years,
             )
         )
         stats.natural_disaster_chance = probability.natural_disaster_chance(
             agriculture_state.agriculture_natural_deceases,
             agriculture_state.biome_richness,
+            years=self.calendar.years,
         )
         stats.mass_protest_chance = probability.mass_protest_chance(
             politics.contentment,
@@ -384,18 +430,21 @@ class TurnEngine:
             politics.inequality,
             politics.polarization,
             politics.war_fatigue,
+            years=self.calendar.years,
         )
         stats.separatist_crisis_chance = probability.separatist_crisis_chance(
             politics.regional_separatism,
             politics.polarization,
             control_balance,
             provinces_support,
+            years=self.calendar.years,
         )
         stats.major_sabotage_chance = probability.major_sabotage_chance(
             forced_share,
             politics.violence_tendency,
             politics.polarization,
             politics.information_quality,
+            years=self.calendar.years,
         )
 
     def _prepare_calculations(
@@ -409,6 +458,7 @@ class TurnEngine:
             self._ctx(),
             logistic_wastes,
         )
+        logistic.discount = self.calendar.scale_flow(logistic.discount)
         culture = cultural_coefficient(
             politics.cultural_level,
             politics.egocentrism_development,
@@ -469,19 +519,23 @@ class TurnEngine:
             state.others,
         )
         produced = round(
-            agriculture.food_income(
-                results.workers_count,
-                state.securities,
-                state.overprotective_effects,
-                state.agriculture_deceases,
-                state.agriculture_natural_deceases,
-                state.environmental_food,
+            self.calendar.scale_flow(
+                agriculture.food_income(
+                    results.workers_count,
+                    state.securities,
+                    state.overprotective_effects,
+                    state.agriculture_deceases,
+                    state.agriculture_natural_deceases,
+                    state.environmental_food,
+                )
             )
         )
         consumed = round(
-            agriculture.food_consumption(
-                economy.population_count,
-                state.consumption_factor,
+            self.calendar.scale_flow(
+                agriculture.food_consumption(
+                    economy.population_count,
+                    state.consumption_factor,
+                )
             )
         )
         state.food_security = agriculture.food_security_index(
@@ -502,6 +556,7 @@ class TurnEngine:
                     food_balance,
                     state.overstock_percent,
                     state.storages_upkeep,
+                    self.calendar.reference_scale,
                 ),
                 1,
             )
@@ -559,7 +614,10 @@ class TurnEngine:
 
         population_after_decline = round(
             population_before
-            * population_decrement_factor(economy.decrement_coefficient)
+            * population_decrement_factor(
+                economy.decrement_coefficient,
+                self.calendar.reference_scale,
+            )
         )
         population_with_growth = population_after_decline + round(
             economy.income
@@ -569,11 +627,12 @@ class TurnEngine:
             results.food_balance,
             agriculture_state.biome_richness,
             rng=self.rng,
+            reference_scale=self.calendar.reference_scale,
         )
         population_after = max(0, int(population_with_growth - deaths))
         economy.population_count = population_after
         self.population_growth_breakdown = PopulationGrowthBreakdown(
-            turn_months=TURN_MONTHS,
+            turn_months=self.calendar.months,
             population_before=population_before,
             base_growth=self._base_population_growth,
             resource_adjustment=(
@@ -619,13 +678,16 @@ class TurnEngine:
         """Apply each configured delta after its target has been calculated."""
         economy = self.state.economy
         state = self.state.industry
-        resource_metrics, group_metrics = state.dependency_metrics()
+        resource_metrics, group_metrics = state.dependency_metrics(
+            self._turn_resource_demands
+        )
         for effect, target in self._effect_bindings:
             if target.phase is not phase:
                 continue
             if target.special is SpecialEffectTarget.INFRASTRUCTURE_EXPENSES:
                 target_before = (
-                    float(economy.gov_wastes[0]) + self.resource_effect_wastes
+                    self.calendar.scale_flow(economy.gov_wastes[0])
+                    + self.resource_effect_wastes
                 )
             else:
                 target_before = target.current_value()
@@ -666,7 +728,7 @@ class TurnEngine:
             state.tvr1,
             state.tvr2,
         )[0]
-        state.overproduction_coefficient += (
+        state.overproduction_coefficient += self.calendar.scale_flow(
             industry.industry_overproduction_change(
                 state.tvr1,
                 state.tvr2,
@@ -689,9 +751,9 @@ class TurnEngine:
         state = self.state.industry
         operational = self.state.probabilities
         state.last_extracted = {}
-        allocations = self._worker_allocations()
-        capacities = self._extraction_capacities()
-        for _ in range(TURN_MONTHS):
+        for _ in range(self.calendar.months):
+            capacities = self._extraction_capacities()
+            allocations = self._worker_allocations(capacities)
             for operation in self._active_extraction_operations():
                 operation_capacity = capacities.get(operation.target_key, 0.0)
                 if operation_capacity <= 0:
@@ -741,7 +803,8 @@ class TurnEngine:
                     )
         for resource_state in state.resource_inventory.resources.values():
             resource_state.apply_storage_preservation(
-                operational.storage_preservation
+                operational.storage_preservation,
+                self.calendar.reference_scale,
             )
 
     def _extraction_targets(self, operation):
@@ -782,7 +845,7 @@ class TurnEngine:
         industry_state = self.state.industry
         urgent = [
             max(
-                industry_state.resource_demands.get(item.resource, 0.0)
+                self._turn_resource_demands.get(item.resource, 0.0)
                 - item.stockpile,
                 0.0,
             )
@@ -811,8 +874,9 @@ class TurnEngine:
                 state.resource_inventory,
                 rule,
                 self.state.probabilities.process_yield,
+                requested_batches=self.calendar.scale_flow(rule.batches),
             )
-            rule.advance_turn()
+            rule.advance_turn(self.calendar.reference_scale)
             state.last_production.append(
                 replace(result, turns_remaining=rule.turns_remaining)
             )
@@ -822,7 +886,7 @@ class TurnEngine:
         state.resource_shortages = {}
         total_requested = 0.0
         total_spent = 0.0
-        for resource, amount in state.resource_demands.items():
+        for resource, amount in self._turn_resource_demands.items():
             transfer = state.spend_resource(resource, amount)
             state.resource_shortages[resource] = transfer.shortage
             total_requested += transfer.requested
@@ -836,9 +900,11 @@ class TurnEngine:
         )
 
     def _calculate_tax(self, results: CalculationResults) -> None:
-        self.state.economy.tax_income = self.rules.calculate_tax_income(
-            self._ctx(),
-            results,
+        self.state.economy.tax_income = self.calendar.scale_flow(
+            self.rules.calculate_tax_income(
+                self._ctx(),
+                results,
+            )
         )
 
     def _calculate_trade(self) -> None:
@@ -882,6 +948,7 @@ class TurnEngine:
             economy.valgery,
         )
         self.rules.postprocess_trade_income(self._ctx())
+        economy.trade_income = self.calendar.scale_flow(economy.trade_income)
 
     def _calculate_income(
         self,
@@ -904,20 +971,25 @@ class TurnEngine:
             results.workers_count,
         )
         economy.trade_income *= trade_factor
-        economy.branches_income *= trade_factor
+        economy.branches_income = self.calendar.scale_flow(
+            economy.branches_income * trade_factor
+        )
         economy.tax_income *= economy_factor
         economy.tax_income += agriculture_addition
-        industry_state.industry_income *= economy_factor
-        science_income = float(
-            getattr(politics, "income_from_scientific", 0) or 0
+        industry_state.industry_income = self.calendar.scale_flow(
+            industry_state.industry_income * economy_factor
         )
+        science_income = self.calendar.scale_flow(
+            float(getattr(politics, "income_from_scientific", 0) or 0)
+        )
+        resource_balance = self.calendar.scale_flow(economy.resource_balance)
         ledger = TurnLedger(
             tax_income=float(economy.tax_income),
             trade_income=float(economy.trade_income),
             branches_income=float(economy.branches_income),
             industry_income=float(industry_state.industry_income),
             science_income=science_income,
-            resource_balance=float(economy.resource_balance),
+            resource_balance=resource_balance,
             debt_interest=self._debt_interest(),
             resource_effect_wastes=self.resource_effect_wastes,
             total_wastes=self._total_wastes(logistic_wastes),
@@ -935,18 +1007,24 @@ class TurnEngine:
     def _update_stability(
         self,
         contentment_coefficient: float,
-    ) -> tuple[float, float]:
+    ) -> tuple[float, float, float, float]:
         economy = self.state.economy
         politics = self.state.inner_politics
         expected_size = expected_state_apparatus_size(
             economy.population_count,
             self.rules.get_state_apparatus_budget_spent(self._ctx()),
         )
-        updated = economy.stability
-        if expected_size > politics.state_apparatus_size:
-            updated -= 10
-        elif politics.state_apparatus_efficiency > 60 and updated < 100:
-            updated = min(updated + 5, 99)
+        stability_before = self._stability_at_turn_start
+        effect_adjustment = float(economy.stability) - stability_before
+        after_policy = state_apparatus_stability(
+            stability_before,
+            expected_size,
+            politics.state_apparatus_size,
+            politics.state_apparatus_efficiency,
+            self.calendar.reference_scale,
+        )
+        policy_adjustment = after_policy - stability_before
+        updated = probability.clip_percent(after_policy + effect_adjustment)
 
         if (
             80 <= updated <= 99
@@ -961,7 +1039,12 @@ class TurnEngine:
             )
         else:
             boost = simple_stability_income_boost(updated)
-        return float(updated), float(boost)
+        return (
+            float(updated),
+            float(boost),
+            float(policy_adjustment),
+            float(effect_adjustment),
+        )
 
     def _update_education(self) -> None:
         economy = self.state.economy
@@ -975,14 +1058,17 @@ class TurnEngine:
         )
         difference = expected - politics.education_level
         if difference < 0:
-            reduction = abs(difference) // 8
+            reduction = abs(difference) * self.calendar.scale_progress(1 / 8)
             politics.education_level = round(
                 max(expected, politics.education_level - reduction)
             )
         else:
-            politics.education_level += abs(difference) / max(
-                politics.education_level,
-                1,
+            politics.education_level += self.calendar.scale_flow(
+                abs(difference)
+                / max(
+                    politics.education_level,
+                    1,
+                )
             )
         politics.recalculate_derived_fields()
 
@@ -990,7 +1076,7 @@ class TurnEngine:
         economy = self.state.economy
         industry_state = self.state.industry
         politics = self.state.inner_politics
-        politics.military_equipment += (
+        politics.military_equipment += self.calendar.scale_flow(
             economy.war_wastes[1]
             * industry_state.war_production_efficiency
             / 50
@@ -1009,9 +1095,12 @@ class TurnEngine:
         budget_after_raw = (
             budget_before + ledger.net_income + logistic_discount
         )
-        stability_after, boost = self._update_stability(
-            contentment_coefficient
-        )
+        (
+            stability_after,
+            boost,
+            stability_policy_adjustment,
+            stability_effect_adjustment,
+        ) = self._update_stability(contentment_coefficient)
         ledger = replace(ledger, stability_income_factor=boost)
         economy.money_income = ledger.net_income
         budget_after_boost = (
@@ -1019,6 +1108,7 @@ class TurnEngine:
         )
         economy.current_budget = budget_after_boost
         economy.stability = round(stability_after)
+        stability_after = float(economy.stability)
         self._update_education()
         self._update_military_equipment()
         money_income_before_effects = float(economy.money_income)
@@ -1030,8 +1120,9 @@ class TurnEngine:
         budget_after_boost = float(economy.current_budget)
         return SkipMoveReport(
             mode=self.mode_name,
+            turn_months=self.calendar.months,
             budget_before=budget_before,
-            logistic_wastes=self._logistic_wastes(),
+            logistic_wastes=self.calendar.scale_flow(self._logistic_wastes()),
             total_wastes=ledger.total_wastes,
             logistic_discount=logistic_discount,
             tax_income=ledger.tax_income,
@@ -1044,7 +1135,10 @@ class TurnEngine:
             resource_effect_wastes=ledger.resource_effect_wastes,
             money_income=float(economy.money_income),
             budget_after_raw=float(budget_after_raw),
+            stability_before=self._stability_at_turn_start,
             stability_after=stability_after,
+            stability_policy_adjustment=stability_policy_adjustment,
+            stability_effect_adjustment=stability_effect_adjustment,
             income_boost=boost,
             budget_after_boost=float(budget_after_boost),
             budget_final=float(budget_after_boost),

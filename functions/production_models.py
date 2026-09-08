@@ -13,8 +13,12 @@ def execute_rule(
     inventory: ResourceInventory,
     rule: ProductionRule,
     process_yield: float,
+    requested_batches: float | None = None,
 ) -> ProductionResult:
-    requested = rule.batches if rule.enabled else 0.0
+    requested = (
+        rule.batches if requested_batches is None else requested_batches
+    )
+    requested = max(float(requested), 0.0) if rule.enabled else 0.0
     yield_factor = min(max(process_yield / 100, 0.0), 1.0)
     limits = [requested]
     for resource, per_batch in rule.inputs.items():

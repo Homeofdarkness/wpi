@@ -122,9 +122,13 @@ def food_diversity_income_factor(food_diversity: float) -> float:
     return 0.9 + 0.22 * normalized
 
 
-def population_decrement_factor(decrement_coefficient: int) -> float:
-    """Scale the historical six-month population decline to one turn."""
-    return 1 - 0.01 * decrement_coefficient * TURN_SCALE
+def population_decrement_factor(
+    decrement_coefficient: int,
+    reference_scale: float = TURN_SCALE,
+) -> float:
+    """Compound the historical six-month survival factor for one turn."""
+    reference_survival = max(0.0, 1 - 0.01 * decrement_coefficient)
+    return reference_survival ** max(float(reference_scale), 0.0)
 
 
 def expected_state_apparatus_size(

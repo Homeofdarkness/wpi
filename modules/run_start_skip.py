@@ -7,9 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from modules.skip_move_types import WorldState
-from stats.industry_text import CONFIG_END, CONFIG_START
 from stats.stats_base import StatsBase
-from utils.input_parsers import InputParser
 
 
 class InputMode(StrEnum):
@@ -28,7 +26,7 @@ class StatsConfig:
 SKIPPER_SECTIONS = {
     "economy": "=== ЭКОНОМИКА И ТОРГОВЛЯ ===",
     "industry": "=== ПРОМЫШЛЕННОСТЬ ===",
-    "industry_configuration": "=== НАСТРОЙКИ ПРОМЫШЛЕННОСТИ ===",
+    "industry_configuration": "=== TOML ПРОМЫШЛЕННОСТИ ===",
     "agriculture": "=== СЕЛЬСКОЕ ХОЗЯЙСТВО ===",
     "government": "=== ГОСУДАРСТВО, КОНТРОЛЬ И НАРОД ===",
 }
@@ -94,8 +92,8 @@ def read_text_section(
 
     A Markdown fence switches the reader to fence-aware mode.  For unfenced
     current output, a blank line terminates only a complete section; internal
-    blanks are preserved.  Two consecutive blanks remain a fallback for old
-    incomplete formats.  Configuration may provide an explicit terminator.
+    blanks are preserved.  Two consecutive blanks remain a fallback for
+    incomplete or marker-free configuration formats.
     """
     print(title)
     lines: list[str] = []
@@ -187,38 +185,41 @@ class StatsInput:
         text = "\n".join(lines)
         if not text:
             return ""
-        if CONFIG_START not in text:
-            text = f"{CONFIG_START}\n{text}"
-        if CONFIG_END not in text:
-            text = f"{text}\n{CONFIG_END}"
+        if lines[0].strip().startswith("```"):
+            if not lines[-1].strip().startswith("```"):
+                raise ValueError(
+                    "У TOML-блока отсутствует закрывающая рамка ```"
+                )
+            text = "\n".join(lines[1:-1]).strip()
         return text
 
     @staticmethod
     def _read_creator_industry_configuration() -> str | None:
-        print("=== YAML ПРОМЫШЛЕННОСТИ ===")
         print(
-            "Вставьте YAML-блок ресурсов, добычи, производства и эффектов. "
-            "Пустая первая строка оставит промышленность без ресурсов."
+            "Вставьте TOML ресурсов, добычи, производства и эффектов. "
+            "Внутренние пустые строки допустимы; для завершения нажмите "
+            "Enter дважды. Пустая первая строка оставит промышленность "
+            "без ресурсов."
         )
-        configuration = InputParser.parse_data_from_str().strip()
+        configuration = read_text_section(
+            "=== TOML ПРОМЫШЛЕННОСТИ ===",
+            completion_check=lambda _: False,
+        ).strip()
         return configuration or None
 
     def _read_skipper(self) -> WorldState:
         print(
             "Блок можно вставлять с рамкой ```...``` или без неё. "
-            "Внутренние пустые строки сохраняются; после последней "
-            "строки блока нажмите Enter."
+            "Внутренние пустые строки сохраняются. После TOML без рамки "
+            "нажмите Enter дважды; остальные блоки завершаются одним Enter."
         )
         sections = {}
         for name, title in SKIPPER_SECTIONS.items():
-            terminator = (
-                CONFIG_END if name == "industry_configuration" else None
-            )
             sections[name] = read_text_section(
                 title,
-                terminator=terminator,
+                terminator=None,
                 completion_check=(
-                    None
+                    (lambda _: False)
                     if name == "industry_configuration"
                     else lambda text, section=name: (
                         _skipper_section_is_complete(section, text)
@@ -229,7 +230,7 @@ class StatsInput:
         if not industry_configuration:
             raise ValueError(
                 "Не вставлены отдельные настройки промышленности. "
-                "Используйте файл *_industry_settings.txt"
+                "Используйте файл *_industry_settings.toml"
             )
         return WorldState(
             economy=self.config.economy_class.from_stats_text(

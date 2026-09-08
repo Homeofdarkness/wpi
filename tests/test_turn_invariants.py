@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from functions.agriculture_models import workers_count
 from functions.industry_models import overproduction_tax_factor
+from functions.time_models import TURN_SCALE
 from modules.run_skip_move import TurnEngine
 from modules.skip_move_types import WorldState
 from stats.basic_stats import EconomyStats, IndustrialStats
@@ -35,9 +36,15 @@ def test_final_budget_is_stock_plus_turn_flow_not_multiplied_stock():
 
 def test_stability_is_persisted_in_next_state():
     bundle = make_basic_bundle()
+    stability_before = bundle.economy.stability
     report = engine_for(bundle).run()
 
+    assert report.stability_before == stability_before
+    assert report.stability_effect_adjustment == 0
     assert bundle.economy.stability == report.stability_after
+    assert report.stability_after == round(
+        stability_before + report.stability_policy_adjustment
+    )
 
 
 def test_population_growth_is_applied_and_remains_integer():
@@ -120,5 +127,5 @@ def test_reused_engine_does_not_compound_derived_branch_income():
         bundle.economy.branches_efficiency / 10
     )
     assert bundle.economy.branches_income == pytest.approx(
-        expected_base * 0.97
+        expected_base * 0.97 * TURN_SCALE
     )

@@ -58,6 +58,16 @@ def national_extraction_capacity(extraction_spending: float) -> float:
     return max(extraction_spending, 0.0) * EXTRACTION_UNITS_PER_SPENDING
 
 
+def extraction_priority_weight(
+    priority: int,
+    lowest_priority: int,
+) -> float:
+    """Convert ordinal ranks to weights while keeping rank 1 strongest."""
+    rank = max(int(priority), 1)
+    lowest_rank = max(int(lowest_priority), rank)
+    return float(lowest_rank - rank + 1)
+
+
 def effective_workers(
     ordinary_workers: int,
     specialist_workers: int,

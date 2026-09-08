@@ -1,6 +1,7 @@
 import pydantic
 from typing_extensions import override
 
+from functions.time_models import REFERENCE_TURN_MONTHS
 from stats.derived_fields import (
     populate_basic_economy,
     populate_basic_industry,
@@ -141,6 +142,8 @@ class IndustrialStats(StatsBase):
     last_production: list[ProductionResult] = pydantic.Field(
         default_factory=list
     )
+    # Values are monthly consumption rates; TurnEngine expands them to the
+    # actual number of months in the current turn.
     resource_demands: dict[ResourceType, float] = pydantic.Field(
         default_factory=dict
     )
@@ -199,9 +202,9 @@ class IndustrialStats(StatsBase):
             quality=registration.quality,
         )
         self.resource_inventory.resources[registration.resource] = state
-        if registration.consumption_per_turn > 0:
+        if registration.consumption_per_month > 0:
             self.resource_demands[registration.resource] = (
-                registration.consumption_per_turn
+                registration.consumption_per_month
             )
         else:
             self.resource_demands.pop(registration.resource, None)
@@ -364,16 +367,16 @@ class IndustrialStats(StatsBase):
                 rows.append("Текущий ход ещё не рассчитывался")
             return "\n".join(rows)
         for result in self.last_production:
-            remaining = (
+            remaining_months = (
                 "∞"
                 if result.turns_remaining is None
-                else str(result.turns_remaining)
+                else str(round(result.turns_remaining * REFERENCE_TURN_MONTHS))
             )
             rows.append(
                 f"{result.name} [{result.rule_id}]: "
                 f"план {result.requested_batches:.1f}, "
                 f"выполнено {result.completed_batches:.1f} партий, "
-                f"осталось ходов {remaining}"
+                f"осталось месяцев {remaining_months}"
             )
             rows.append(
                 "  Взято: "
@@ -433,8 +436,12 @@ class IndustrialStats(StatsBase):
 
     def dependency_metrics(
         self,
+        demands: dict[ResourceType, float] | None = None,
     ) -> tuple[dict[str, DependencyMetric], dict[str, DependencyMetric]]:
         """Return normalized deficit/surplus inputs exposed to formulas."""
+        effective_demands = (
+            self.resource_demands if demands is None else demands
+        )
         active = [
             state
             for state in self.resource_inventory.resources.values()
@@ -442,7 +449,7 @@ class IndustrialStats(StatsBase):
         ]
         resource_metrics: dict[str, DependencyMetric] = {}
         for state in active:
-            demand = self.resource_demands.get(state.resource, 0.0)
+            demand = effective_demands.get(state.resource, 0.0)
             resource_metrics[state.resource.value] = DependencyMetric(
                 deficit=(
                     self.resource_shortages.get(state.resource, 0.0) / demand
@@ -458,10 +465,10 @@ class IndustrialStats(StatsBase):
                 state
                 for state in active
                 if state.group is group
-                and self.resource_demands.get(state.resource, 0.0) > 0
+                and effective_demands.get(state.resource, 0.0) > 0
             ]
             total_demand = sum(
-                self.resource_demands[state.resource] for state in demanded
+                effective_demands[state.resource] for state in demanded
             )
             group_metrics[group.value] = DependencyMetric(
                 deficit=(
@@ -518,8 +525,8 @@ class IndustrialStats(StatsBase):
                 and "СОСТОЯНИЕ РЕСУРСОВ\nНет данных" not in data
             ):
                 raise ValueError(
-                    "Для состояния ресурсов нужен отдельный блок "
-                    "НАСТРОЙКА ПРОМЫШЛЕННОСТИ"
+                    "Для состояния ресурсов нужен отдельный TOML-файл "
+                    "настроек промышленности"
                 )
             return stats
 

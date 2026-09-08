@@ -1,14 +1,17 @@
-"""YAML industrial configuration and readable calculated resource state."""
+"""TOML industrial configuration and readable calculated resource state."""
 
 from __future__ import annotations
 
+import json
 import re
+import tomllib
 from dataclasses import dataclass
 from typing import Literal
 
 import pydantic
 import yaml
 
+from functions.time_models import REFERENCE_TURN_MONTHS
 from stats.industry_components import (
     ExtractionGroup,
     ExtractionOperation,
@@ -20,9 +23,12 @@ from stats.industry_effects import IndustrialEffect, default_industrial_effects
 from stats.production_components import ProductionRecipeId, ProductionRule
 
 
+# Deprecated names kept so older integrations can still identify/import the
+# former YAML v2 block.  TOML v3 output does not emit either marker.
 CONFIG_START = "НАСТРОЙКА ПРОМЫШЛЕННОСТИ YAML"
 CONFIG_END = "КОНЕЦ НАСТРОЙКИ ПРОМЫШЛЕННОСТИ"
 LEGACY_CONFIG_START = "НАСТРОЙКА ПРОМЫШЛЕННОСТИ"
+TOML_SCHEMA_PATTERN = re.compile(r"^schema_version\s*=\s*3(?:\s*#.*)?$")
 
 GROUP_NAMES: dict[ExtractionGroup, str] = {
     ExtractionGroup.FORESTRY: "Лесное хозяйство",
@@ -47,31 +53,6 @@ GROUP_NAMES: dict[ExtractionGroup, str] = {
 }
 
 
-class _IndentedSafeDumper(yaml.SafeDumper):
-    """Keep sequence items indented under their YAML mapping key."""
-
-    def increase_indent(self, flow: bool = False, indentless: bool = False):
-        return super().increase_indent(flow, indentless=False)
-
-
-class _FoldedString(str):
-    pass
-
-
-def _represent_folded_string(
-    dumper: _IndentedSafeDumper,
-    value: _FoldedString,
-):
-    return dumper.represent_scalar(
-        "tag:yaml.org,2002:str",
-        value,
-        style=">",
-    )
-
-
-_IndentedSafeDumper.add_representer(_FoldedString, _represent_folded_string)
-
-
 class _ResourceConfig(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
 
@@ -79,7 +60,14 @@ class _ResourceConfig(pydantic.BaseModel):
     group: ExtractionGroup
     availability: float = pydantic.Field(100.0, ge=0, le=100)
     quality: float = pydantic.Field(100.0, ge=0, le=100)
-    consumption: float = pydantic.Field(0.0, ge=0)
+    consumption_per_month: float = pydantic.Field(
+        0.0,
+        ge=0,
+        validation_alias=pydantic.AliasChoices(
+            "consumption_per_month",
+            "consumption",
+        ),
+    )
     storage_capacity: float = pydantic.Field(0.0, ge=0)
 
 
@@ -87,7 +75,7 @@ class _ExtractionConfig(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
 
     intensity: float = pydantic.Field(100.0, ge=0, le=100)
-    priority: float = pydantic.Field(1.0, gt=0)
+    priority: int = pydantic.Field(1, ge=1)
 
 
 class _ProductionConfig(pydantic.BaseModel):
@@ -97,7 +85,8 @@ class _ProductionConfig(pydantic.BaseModel):
     name: str = pydantic.Field(..., min_length=1)
     active: bool = True
     batches: float = pydantic.Field(..., ge=0)
-    turns: int | None = pydantic.Field(None, ge=0)
+    turns: float | None = pydantic.Field(None, ge=0)
+    months: int | None = pydantic.Field(None, ge=0)
     inputs: dict[ResourceType, float] = pydantic.Field(default_factory=dict)
     outputs: dict[ResourceType, float] = pydantic.Field(min_length=1)
     byproducts: dict[ResourceType, float] = pydantic.Field(
@@ -106,6 +95,8 @@ class _ProductionConfig(pydantic.BaseModel):
 
     @pydantic.model_validator(mode="after")
     def non_negative_resource_amounts(self) -> _ProductionConfig:
+        if self.turns is not None and self.months is not None:
+            raise ValueError("Укажите либо устаревшее turns, либо months")
         for mapping in (self.inputs, self.outputs, self.byproducts):
             if any(value < 0 for value in mapping.values()):
                 raise ValueError(
@@ -117,7 +108,7 @@ class _ProductionConfig(pydantic.BaseModel):
 class _IndustryConfig(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
 
-    schema_version: Literal[2]
+    schema_version: Literal[2, 3]
     resources: dict[ResourceType, _ResourceConfig] = pydantic.Field(
         default_factory=dict
     )
@@ -254,64 +245,114 @@ def render_industry_configuration(
     effects: list[IndustrialEffect],
     demands: dict[ResourceType, float],
 ) -> str:
-    """Render a structured, editable YAML configuration."""
+    """Render marker-free TOML v3 that can be edited or saved directly."""
     active_resources = [state for state in resources.values() if state.enabled]
-    payload = {
-        "schema_version": 2,
-        "resources": {
-            state.resource.value: {
-                "name": state.definition.name,
-                "group": state.definition.group.value,
-                "availability": round(state.accessibility, 1),
-                "quality": round(state.quality, 1),
-                "consumption": round(demands.get(state.resource, 0.0), 1),
-                "storage_capacity": round(state.storage_capacity, 1),
-            }
-            for state in active_resources
-        },
-        "extraction": {
-            operation.target: {
-                "intensity": round(operation.intensity, 1),
-                "priority": round(operation.priority, 1),
-            }
-            for operation in operations
-        },
-        "production": [
-            {
-                "id": rule.rule_id,
-                "name": rule.name,
-                "active": rule.enabled,
-                "batches": round(rule.batches, 1),
-                "turns": rule.turns_remaining,
-                "inputs": _plain_resource_map(rule.inputs),
-                "outputs": _plain_resource_map(rule.outputs),
-                "byproducts": _plain_resource_map(rule.byproducts),
-            }
-            for rule in production_rules
-        ],
-        "effects": [_effect_payload(effect) for effect in effects],
-    }
-    body = yaml.dump(
-        payload,
-        Dumper=_IndentedSafeDumper,
-        allow_unicode=True,
-        sort_keys=False,
-        default_flow_style=False,
-        width=120,
-    ).rstrip()
-    return f"{CONFIG_START}\n{body}\n{CONFIG_END}"
+    lines = ["schema_version = 3"]
+    if not active_resources:
+        lines.append("resources = {}")
+    if not operations:
+        lines.append("extraction = {}")
+    if not production_rules:
+        lines.append("production = []")
+    if not effects:
+        lines.append("effects = []")
+
+    for state in active_resources:
+        _append_toml_block(
+            lines,
+            [
+                f"[resources.{state.resource.value}]",
+                f"name = {_toml_string(state.definition.name)}",
+                f"group = {_toml_string(state.definition.group.value)}",
+                f"availability = {_toml_float(state.accessibility)}",
+                f"quality = {_toml_float(state.quality)}",
+                "consumption_per_month = "
+                f"{_toml_float(demands.get(state.resource, 0.0))}",
+                f"storage_capacity = {_toml_float(state.storage_capacity)}",
+            ],
+        )
+
+    for operation in operations:
+        _append_toml_block(
+            lines,
+            [
+                f"[extraction.{operation.target}]",
+                f"intensity = {_toml_float(operation.intensity)}",
+                f"priority = {operation.priority}",
+            ],
+        )
+
+    for rule in production_rules:
+        block = [
+            "[[production]]",
+            f"id = {_toml_string(rule.rule_id)}",
+            f"name = {_toml_string(rule.name)}",
+            f"active = {_toml_bool(rule.enabled)}",
+            f"batches = {_toml_float(rule.batches)}",
+        ]
+        if rule.turns_remaining is not None:
+            block.append(
+                "months = "
+                f"{round(rule.turns_remaining * REFERENCE_TURN_MONTHS)}"
+            )
+        block.extend(
+            (
+                f"inputs = {_toml_resource_map(rule.inputs)}",
+                f"outputs = {_toml_resource_map(rule.outputs)}",
+                f"byproducts = {_toml_resource_map(rule.byproducts)}",
+            )
+        )
+        _append_toml_block(lines, block)
+
+    for effect in effects:
+        dependencies = ", ".join(
+            (
+                f"{{ resource = {_toml_string(item.resource.value)} }}"
+                if item.resource is not None
+                else f"{{ group = {_toml_string(item.group.value)} }}"
+            )
+            for item in effect.dependencies
+        )
+        targets = ", ".join(_toml_string(item) for item in effect.targets)
+        _append_toml_block(
+            lines,
+            [
+                "[[effects]]",
+                f"id = {_toml_string(effect.id)}",
+                f"dependencies = [{dependencies}]",
+                f"targets = [{targets}]",
+                f"formula = {_toml_string(effect.formula)}",
+            ],
+        )
+    return "\n".join(lines)
 
 
-def _plain_resource_map(values: dict[ResourceType, float]) -> dict[str, float]:
-    return {
-        resource.value: round(amount, 1) for resource, amount in values.items()
-    }
+def _append_toml_block(lines: list[str], block: list[str]) -> None:
+    if lines and lines[-1]:
+        lines.append("")
+    lines.extend(block)
 
 
-def _effect_payload(effect: IndustrialEffect) -> dict:
-    payload = effect.model_dump(mode="json", exclude_none=True)
-    payload["formula"] = _FoldedString(effect.formula)
-    return payload
+def _toml_string(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _toml_float(value: float | int) -> str:
+    return f"{round(float(value), 1):.1f}"
+
+
+def _toml_bool(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def _toml_resource_map(values: dict[ResourceType, float]) -> str:
+    if not values:
+        return "{}"
+    pairs = ", ".join(
+        f"{resource.value} = {_toml_float(amount)}"
+        for resource, amount in values.items()
+    )
+    return f"{{ {pairs} }}"
 
 
 def _parse_state_row(
@@ -333,48 +374,84 @@ def _parse_state_row(
     )
 
 
-def _configuration_body(text: str) -> str | None:
+def _configuration_body(text: str) -> tuple[str, str] | None:
     lines = text.splitlines()
     if any(line.strip() == LEGACY_CONFIG_START for line in lines):
         raise ValueError(
-            "Старый строковый формат промышленности удалён; нужен YAML "
-            "schema_version: 2"
+            "Старый строковый формат промышленности удалён; нужен TOML "
+            "schema_version = 3"
         )
-    starts = [
+    yaml_starts = [
         index
         for index, line in enumerate(lines)
         if line.strip() == CONFIG_START
     ]
-    ends = [
+    yaml_ends = [
         index for index, line in enumerate(lines) if line.strip() == CONFIG_END
     ]
-    if not starts:
+    if yaml_starts or yaml_ends:
+        if len(yaml_starts) != 1 or len(yaml_ends) != 1:
+            raise ValueError(
+                "Ожидался ровно один полный старый YAML-блок промышленности"
+            )
+        start, end = yaml_starts[0], yaml_ends[0]
+        if end <= start:
+            raise ValueError(
+                "Конец старой настройки промышленности находится до начала"
+            )
+        return "yaml", "\n".join(lines[start + 1 : end])
+
+    toml_starts = [
+        index
+        for index, line in enumerate(lines)
+        if TOML_SCHEMA_PATTERN.fullmatch(line.strip())
+    ]
+    if not toml_starts:
         return None
-    if len(starts) != 1 or len(ends) != 1:
-        raise ValueError("Ожидался ровно один полный YAML-блок промышленности")
-    start, end = starts[0], ends[0]
-    if end <= start:
-        raise ValueError("Конец настройки промышленности находится до начала")
-    return "\n".join(lines[start + 1 : end])
+    if len(toml_starts) != 1:
+        raise ValueError("Найдено несколько TOML-конфигураций промышленности")
+    start = toml_starts[0]
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        stripped = lines[index].strip()
+        if stripped == "СОСТОЯНИЕ РЕСУРСОВ" or stripped.startswith("```"):
+            end = index
+            break
+    return "toml", "\n".join(lines[start:end]).rstrip()
 
 
 def parse_industry_configuration(text: str) -> IndustryTextState | None:
-    """Parse YAML rules and merge the separately rendered calculated state."""
-    body = _configuration_body(text)
-    if body is None:
+    """Parse TOML v3 or legacy YAML v2 and merge calculated resource state."""
+    configuration = _configuration_body(text)
+    if configuration is None:
         return None
-    try:
-        raw = yaml.safe_load(body) or {}
-    except yaml.YAMLError as error:
-        raise ValueError(
-            f"Некорректный YAML промышленности: {error}"
-        ) from error
+    format_name, body = configuration
+    if format_name == "toml":
+        try:
+            raw = tomllib.loads(body)
+        except tomllib.TOMLDecodeError as error:
+            raise ValueError(
+                f"Некорректный TOML промышленности: {error}"
+            ) from error
+    else:
+        try:
+            raw = yaml.safe_load(body) or {}
+        except yaml.YAMLError as error:
+            raise ValueError(
+                f"Некорректный старый YAML промышленности: {error}"
+            ) from error
     try:
         config = _IndustryConfig.model_validate(raw)
     except pydantic.ValidationError as error:
         raise ValueError(
             f"Некорректная настройка промышленности:\n{error}"
         ) from error
+    expected_version = 3 if format_name == "toml" else 2
+    if config.schema_version != expected_version:
+        raise ValueError(
+            f"Для {format_name.upper()} ожидается schema_version "
+            f"{expected_version}, получено {config.schema_version}"
+        )
 
     registrations = {
         alias: ResourceRegistration(
@@ -383,7 +460,7 @@ def parse_industry_configuration(text: str) -> IndustryTextState | None:
             group=item.group,
             accessibility=item.availability,
             quality=item.quality,
-            consumption_per_turn=item.consumption,
+            consumption_per_month=item.consumption_per_month,
             storage_capacity=item.storage_capacity,
         )
         for alias, item in config.resources.items()
@@ -437,7 +514,15 @@ def parse_industry_configuration(text: str) -> IndustryTextState | None:
                 target_group=target_group,
                 enabled=item.active,
                 batches=item.batches,
-                turns_remaining=item.turns,
+                turns_remaining=(
+                    item.turns
+                    if item.turns is not None
+                    else (
+                        item.months / REFERENCE_TURN_MONTHS
+                        if item.months is not None
+                        else None
+                    )
+                ),
                 inputs=item.inputs,
                 outputs=item.outputs,
                 byproducts=item.byproducts,
@@ -489,9 +574,9 @@ def parse_industry_configuration(text: str) -> IndustryTextState | None:
             shortages[resource] = shortage
 
     demands = {
-        registration.resource: registration.consumption_per_turn
+        registration.resource: registration.consumption_per_month
         for registration in registrations.values()
-        if registration.consumption_per_turn > 0
+        if registration.consumption_per_month > 0
     }
     return IndustryTextState(
         registrations=list(registrations.values()),

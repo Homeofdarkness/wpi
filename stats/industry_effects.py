@@ -26,7 +26,7 @@ EffectTarget = SpecialEffectTarget
 
 
 class EffectPhase(StrEnum):
-    """Internal turn stages; the public YAML never has to specify them."""
+    """Internal turn stages; the public TOML never has to specify them."""
 
     AFTER_RESOURCES = "after_resources"
     INDUSTRY_DERIVED = "industry_derived"

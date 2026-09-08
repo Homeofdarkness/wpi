@@ -4,6 +4,7 @@ import numpy as np
 import pydantic
 import pytest
 
+from functions.time_models import TURN_MONTHS, TURN_SCALE
 from modules.mode_spec import GameMode, get_mode
 from modules.run_skip_move import TurnEngine
 from modules.skip_move_types import WorldState
@@ -48,7 +49,7 @@ def configure_fresh_water_shortage(bundle) -> None:
         ResourceRegistration(
             resource=ResourceType.FRESH_WATER,
             storage_capacity=100,
-            consumption_per_turn=100,
+            consumption_per_month=100,
         )
     )
 
@@ -114,7 +115,7 @@ def test_fresh_water_deficit_reduces_growth_in_the_same_turn() -> None:
             ResourceRegistration(
                 resource=ResourceType.FRESH_WATER,
                 storage_capacity=100,
-                consumption_per_turn=100,
+                consumption_per_month=100,
             )
         )
     control.industry.effects = []
@@ -122,9 +123,9 @@ def test_fresh_water_deficit_reduces_growth_in_the_same_turn() -> None:
     affected_report = make_engine(affected, seed=10).run()
     control_report = make_engine(control, seed=10).run()
 
-    assert (
-        affected.industry.resource_shortages[ResourceType.FRESH_WATER] == 100
-    )
+    assert affected.industry.resource_shortages[
+        ResourceType.FRESH_WATER
+    ] == pytest.approx(100 * TURN_MONTHS)
     assert affected.economy.income == pytest.approx(
         control.economy.income * 0.8
     )
@@ -152,7 +153,7 @@ def test_one_formula_is_applied_independently_to_multiple_targets() -> None:
         ResourceRegistration(
             resource=ResourceType.FRESH_WATER,
             storage_capacity=100,
-            consumption_per_turn=100,
+            consumption_per_month=100,
         )
     )
     bundle.industry.effects = [
@@ -177,7 +178,7 @@ def test_one_formula_is_applied_independently_to_multiple_targets() -> None:
         by_target[EffectTarget.POPULATION_GROWTH].target_before * 0.9
     )
     assert report.resource_effect_wastes == pytest.approx(
-        -bundle.economy.gov_wastes[0] * 0.1
+        -bundle.economy.gov_wastes[0] * TURN_SCALE * 0.1
     )
 
 
@@ -196,7 +197,7 @@ def test_construction_effect_is_a_separate_budget_adjustment(
             resource=ResourceType.BASIC_BUILDING_MATERIALS,
             stockpile=stockpile,
             storage_capacity=max(stockpile, 100),
-            consumption_per_turn=100,
+            consumption_per_month=100,
         )
     )
 
@@ -300,6 +301,32 @@ def test_effect_accepts_any_existing_numeric_stat_without_enum_registration():
     assert report.probabilities is not None
     assert report.probabilities.industrial_accident_chance == pytest.approx(
         results["industrial_accident_chance"].target_before * 0.75
+    )
+
+
+def test_stability_effect_and_policy_use_one_turn_start_snapshot() -> None:
+    bundle = make_basic_bundle(budget=1_000_000)
+    bundle.economy.stability = 80
+    bundle.inner_politics.state_apparatus_size = 0
+    configure_fresh_water_shortage(bundle)
+    bundle.industry.effects = [
+        water_effect(
+            "stability",
+            formula="-target * resources.fresh_water.deficit * 0.1",
+        )
+    ]
+
+    report = make_engine(bundle, seed=140).run()
+
+    assert report.stability_before == 80
+    assert report.stability_effect_adjustment == pytest.approx(-8)
+    assert report.stability_policy_adjustment == pytest.approx(
+        -10 * TURN_SCALE
+    )
+    assert report.stability_after == round(
+        report.stability_before
+        + report.stability_effect_adjustment
+        + report.stability_policy_adjustment
     )
 
 
@@ -568,7 +595,7 @@ def test_configured_stat_effect_runs_a_full_turn_in_every_game_mode(
     assert result.target_after == pytest.approx(result.target_before * 0.9)
 
 
-def test_arbitrary_targets_survive_yaml_configuration_roundtrip():
+def test_arbitrary_targets_survive_configuration_roundtrip():
     bundle = make_basic_bundle()
     configure_fresh_water_shortage(bundle)
     bundle.industry.effects = [

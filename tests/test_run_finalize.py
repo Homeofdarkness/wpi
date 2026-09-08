@@ -1,5 +1,6 @@
 import pytest
 
+from functions.time_models import TURN_MONTHS, format_months
 from modules.run_finalize import (
     print_final_state,
     render_budget_report,
@@ -28,8 +29,9 @@ def test_final_output_keeps_production_and_next_turn_settings(capsys):
     assert "ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ" in output
     assert "freshwater_population_growth:" in output
     assert "ожидает расчёта хода" in output
-    assert "Настройки промышленности для следующего хода" in output
-    assert "НАСТРОЙКА ПРОМЫШЛЕННОСТИ" in output
+    assert "TOML промышленности для следующего хода" in output
+    assert "schema_version = 3" in output
+    assert "НАСТРОЙКА ПРОМЫШЛЕННОСТИ" not in output
 
 
 def test_budget_report_explains_the_turn_with_one_decimal() -> None:
@@ -44,10 +46,14 @@ def test_budget_report_explains_the_turn_with_one_decimal() -> None:
 
     output = render_budget_report(report)
 
+    assert "╫" in output
     assert "ОТЧЁТ БЮДЖЕТА" in output
     assert "Валовые доходы" in output
     assert "Общие расходы" in output
     assert "Изменение казны до кредита" in output
+    assert "Стабильность до хода" in output
+    assert "Поправка государственного аппарата" in output
+    assert "Стабильность после хода" in output
     assert f"{report.total_wastes:.1f} ед.вал" in output
 
 
@@ -65,7 +71,11 @@ def test_population_report_explains_every_growth_factor() -> None:
     growth = report.population_growth
 
     assert growth is not None
-    assert "ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ (3 МЕСЯЦА)" in output
+    assert "╫" in output
+    assert (
+        "ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ "
+        f"({format_months(TURN_MONTHS, uppercase=True)})"
+    ) in output
     assert "Базовый прирост" in output
     assert "Поправка формул ресурсов" in output
     assert "Коэффициент обеспеченности ТЖН" in output

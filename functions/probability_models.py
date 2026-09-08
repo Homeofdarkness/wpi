@@ -14,10 +14,13 @@ def clip_percent(value: float) -> float:
     return min(100.0, max(0.0, float(value)))
 
 
-def turn_chance(annual_hazard: float) -> float:
+def turn_chance(
+    annual_hazard: float,
+    years: float = TURN_YEARS,
+) -> float:
     """Convert an annual hazard into a chance for the current turn."""
     hazard = max(float(annual_hazard), 0.0)
-    return clip_percent((1 - math.exp(-hazard * TURN_YEARS)) * 100)
+    return clip_percent((1 - math.exp(-hazard * max(years, 0.0))) * 100)
 
 
 def half_year_chance(annual_hazard: float) -> float:
@@ -101,6 +104,8 @@ def industrial_accident_chance(
     standardization: float,
     forced_worker_share: float,
     safety: float,
+    *,
+    years: float = TURN_YEARS,
 ) -> float:
     risk = (
         0.55
@@ -110,13 +115,15 @@ def industrial_accident_chance(
         + 1.2 * forced_worker_share
         + 1.0 * (1 - safety / 100)
     )
-    return turn_chance(0.045 * max(risk, 0.0))
+    return turn_chance(0.045 * max(risk, 0.0), years)
 
 
 def supply_disruption_chance(
     logistics_integrity: float,
     regional_separatism: float,
     war_fatigue: float,
+    *,
+    years: float = TURN_YEARS,
 ) -> float:
     risk = (
         0.5
@@ -124,7 +131,7 @@ def supply_disruption_chance(
         + regional_separatism / 80
         + war_fatigue / 150
     )
-    return turn_chance(0.035 * max(risk, 0.0))
+    return turn_chance(0.035 * max(risk, 0.0), years)
 
 
 def population_epidemic_chance(
@@ -132,6 +139,8 @@ def population_epidemic_chance(
     poor_level: float,
     food_security: float,
     information_quality: float,
+    *,
+    years: float = TURN_YEARS,
 ) -> float:
     healthcare_protection = min(max(healthcare_per_million / 40, 0.0), 1.0)
     food_risk = max(0.0, 100 - food_security) / 100
@@ -142,13 +151,15 @@ def population_epidemic_chance(
         + 0.8 * (1 - information_quality / 100)
         + 0.8 * (1 - healthcare_protection)
     )
-    return turn_chance(0.025 * max(risk, 0.0))
+    return turn_chance(0.025 * max(risk, 0.0), years)
 
 
 def agricultural_epidemic_chance(
     disease_level: float,
     food_diversity: float,
     agriculture_efficiency: float,
+    *,
+    years: float = TURN_YEARS,
 ) -> float:
     risk = (
         0.4
@@ -156,15 +167,17 @@ def agricultural_epidemic_chance(
         + max(0.0, 60 - food_diversity) / 60
         + max(0.0, 60 - agriculture_efficiency) / 80
     )
-    return turn_chance(0.04 * max(risk, 0.0))
+    return turn_chance(0.04 * max(risk, 0.0), years)
 
 
 def natural_disaster_chance(
     natural_deceases: float,
     biome_richness: float,
+    *,
+    years: float = TURN_YEARS,
 ) -> float:
     risk = 0.45 + natural_deceases / 30 + max(0.0, 40 - biome_richness) / 80
-    return turn_chance(0.035 * max(risk, 0.0))
+    return turn_chance(0.035 * max(risk, 0.0), years)
 
 
 def mass_protest_chance(
@@ -173,6 +186,8 @@ def mass_protest_chance(
     inequality: float,
     polarization: float,
     war_fatigue: float,
+    *,
+    years: float = TURN_YEARS,
 ) -> float:
     risk = (
         0.25
@@ -182,7 +197,7 @@ def mass_protest_chance(
         + polarization / 80
         + war_fatigue / 100
     )
-    return turn_chance(0.055 * max(risk, 0.0))
+    return turn_chance(0.055 * max(risk, 0.0), years)
 
 
 def separatist_crisis_chance(
@@ -190,6 +205,8 @@ def separatist_crisis_chance(
     polarization: float,
     control_balance: float,
     provinces_support: float,
+    *,
+    years: float = TURN_YEARS,
 ) -> float:
     risk = (
         0.2
@@ -198,7 +215,7 @@ def separatist_crisis_chance(
         + max(0.0, -control_balance) / 50
         + max(0.0, 1 - provinces_support)
     )
-    return turn_chance(0.04 * max(risk, 0.0))
+    return turn_chance(0.04 * max(risk, 0.0), years)
 
 
 def major_sabotage_chance(
@@ -206,6 +223,8 @@ def major_sabotage_chance(
     violence_tendency: float,
     polarization: float,
     information_quality: float,
+    *,
+    years: float = TURN_YEARS,
 ) -> float:
     risk = (
         0.2
@@ -214,7 +233,7 @@ def major_sabotage_chance(
         + polarization / 100
         + max(0.0, 50 - information_quality) / 70
     )
-    return turn_chance(0.035 * max(risk, 0.0))
+    return turn_chance(0.035 * max(risk, 0.0), years)
 
 
 def mean_or_default(values: list[float], default: float = 100.0) -> float:

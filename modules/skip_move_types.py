@@ -143,6 +143,7 @@ class SkipMoveContext:
 @dataclass
 class SkipMoveReport:
     mode: str
+    turn_months: int
     budget_before: float
     logistic_wastes: float
     total_wastes: float
@@ -157,7 +158,10 @@ class SkipMoveReport:
     resource_effect_wastes: float
     money_income: float
     budget_after_raw: float
+    stability_before: float
     stability_after: float
+    stability_policy_adjustment: float
+    stability_effect_adjustment: float
     income_boost: float
     budget_after_boost: float
     credit_taken: bool = False

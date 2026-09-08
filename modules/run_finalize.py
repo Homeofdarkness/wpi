@@ -2,11 +2,39 @@
 
 from __future__ import annotations
 
+from functions.time_models import format_months
 from modules.skip_move_types import SkipMoveReport, WorldState
 from utils.logger_manager import get_logger
 
 
 logger = get_logger("Finalizer")
+
+
+def _boxed_report(
+    title: str,
+    sections: tuple[tuple[str, list[tuple[str, str]]], ...],
+) -> str:
+    """Render a readable two-column console report with stable borders."""
+    rows = [row for _, section_rows in sections for row in section_rows]
+    label_width = max(len(label) for label, _ in rows)
+    value_width = max(len(value) for _, value in rows)
+    content_width = label_width + value_width + 3
+    if len(title) > content_width:
+        label_width += len(title) - content_width
+        content_width = len(title)
+    border = f"╫{'═' * (label_width + 2)}╫{'═' * (value_width + 2)}╫"
+    result = [border, f"╫ {title.center(content_width)} ╫", border]
+    for index, (section_name, section_rows) in enumerate(sections):
+        if section_name:
+            result.append(f"╫ {section_name.center(content_width, '─')} ╫")
+        result.extend(
+            f"╫ {label:<{label_width}} ╫ {value:>{value_width}} ╫"
+            for label, value in section_rows
+        )
+        if index < len(sections) - 1:
+            result.append(border)
+    result.append(border)
+    return "\n".join(result)
 
 
 def render_budget_report(report: SkipMoveReport) -> str:
@@ -15,19 +43,23 @@ def render_budget_report(report: SkipMoveReport) -> str:
     if ledger is None:
         return "ОТЧЁТ БЮДЖЕТА\nНет данных"
 
-    lines = [
-        ("Казна до хода", report.budget_before),
+    income_lines = [
         ("Налоговый доход", report.tax_income),
         ("Торговый доход", report.trade_income),
         ("Доход филиалов", report.branches_income),
         ("Доход промышленности", report.industry_income),
         ("Доход науки", report.science_income),
         ("Баланс ресурсов", report.resource_balance),
-        ("Поправка расходов от ресурсов", report.resource_effect_wastes),
         ("Валовые доходы", ledger.gross_income),
         ("Доходы после модификаторов", ledger.effective_income),
+    ]
+    expense_lines = [
+        ("Поправка расходов от ресурсов", report.resource_effect_wastes),
         ("Общие расходы", report.total_wastes),
         ("Логистическая скидка", report.logistic_discount),
+    ]
+    result_lines = [
+        ("Казна до хода", report.budget_before),
         (
             "Изменение казны до кредита",
             report.budget_after_boost - report.budget_before,
@@ -35,18 +67,40 @@ def render_budget_report(report: SkipMoveReport) -> str:
         ("Казна до кредита", report.budget_after_boost),
     ]
     if report.credit_taken:
-        lines.extend(
+        result_lines.extend(
             (
                 ("Полученный кредит", report.credit_amount),
                 ("Казна после кредита", float(report.budget_final or 0.0)),
             )
         )
-    width = max(len(label) for label, _ in lines)
-    result = ["ОТЧЁТ БЮДЖЕТА"]
-    result.extend(
-        f"{label:<{width}} : {value:.1f} ед.вал" for label, value in lines
+    stability_lines = [
+        ("Стабильность до хода", f"{report.stability_before:.1f}%"),
+        (
+            "Поправка государственного аппарата",
+            f"{report.stability_policy_adjustment:+.1f} п.п.",
+        ),
+        (
+            "Поправка эффектов",
+            f"{report.stability_effect_adjustment:+.1f} п.п.",
+        ),
+        ("Стабильность после хода", f"{report.stability_after:.1f}%"),
+    ]
+
+    def money_rows(values: list[tuple[str, float]]) -> list[tuple[str, str]]:
+        return [(label, f"{value:.1f} ед.вал") for label, value in values]
+
+    title = (
+        f"ОТЧЁТ БЮДЖЕТА ({format_months(report.turn_months, uppercase=True)})"
     )
-    return "\n".join(result)
+    return _boxed_report(
+        title,
+        (
+            ("ДОХОДЫ", money_rows(income_lines)),
+            ("РАСХОДЫ", money_rows(expense_lines)),
+            ("ИТОГ", money_rows(result_lines)),
+            ("ЭКОНОМИЧЕСКАЯ СТАБИЛЬНОСТЬ", stability_lines),
+        ),
+    )
 
 
 def print_budget_report(report: SkipMoveReport) -> None:
@@ -99,21 +153,21 @@ def render_population_growth_report(report: SkipMoveReport) -> str:
         ),
         ("Население после хода", _people(growth.population_after)),
     ]
-    width = max(
-        len(label)
-        for label, _ in (*number_lines, *factor_lines, *result_lines)
+    title = (
+        "ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ "
+        f"({format_months(growth.turn_months, uppercase=True)})"
     )
-    lines = [f"ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ ({growth.turn_months} МЕСЯЦА)"]
-    lines.extend(
-        f"{label:<{width}} : {value}" for label, value in number_lines
+    return _boxed_report(
+        title,
+        (
+            ("ОСНОВА", number_lines),
+            (
+                "КОЭФФИЦИЕНТЫ",
+                [(label, f"×{value:.4f}") for label, value in factor_lines],
+            ),
+            ("ИТОГ", result_lines),
+        ),
     )
-    lines.extend(
-        f"{label:<{width}} : ×{value:.4f}" for label, value in factor_lines
-    )
-    lines.extend(
-        f"{label:<{width}} : {value}" for label, value in result_lines
-    )
-    return "\n".join(lines)
 
 
 def print_population_growth_report(report: SkipMoveReport) -> None:
@@ -144,7 +198,7 @@ def print_final_state(state: WorldState) -> None:
     print(production_report)
     print()
     print(effect_report)
-    print("\nНастройки промышленности для следующего хода -")
+    print("\nTOML промышленности для следующего хода -")
     print(next_turn_configuration)
     logger.info(production_report)
     logger.info(effect_report)

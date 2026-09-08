@@ -104,3 +104,20 @@ def expected_infrastructure_wastes(population_count: int) -> float:
 
 def expected_logistic_wastes(government_wastes: list[float]) -> float:
     return sum(government_wastes) * 0.2
+
+
+def state_apparatus_stability(
+    stability_before: float,
+    expected_apparatus_size: float,
+    actual_apparatus_size: float,
+    apparatus_efficiency: float,
+    reference_scale: float = 1.0,
+) -> float:
+    """Calculate one policy adjustment without mutating country state."""
+    updated = float(stability_before)
+    scale = max(float(reference_scale), 0.0)
+    if expected_apparatus_size > actual_apparatus_size:
+        updated -= 10 * scale
+    elif apparatus_efficiency > 60 and updated < 100:
+        updated = min(updated + 5 * scale, 99)
+    return min(max(updated, 0.0), 100.0)

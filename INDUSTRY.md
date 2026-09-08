@@ -1,8 +1,15 @@
-# Промышленность: YAML, ресурсы и эффекты
+# Промышленность: TOML, ресурсы и эффекты
 
-Один ход равен трём месяцам. За ход движок добывает ресурсы, выполняет
-производственные правила, покрывает расход и только после этого применяет
-ресурсные эффекты к остальным статам.
+По умолчанию один ход равен трём месяцам, а его длительность задаётся единственной
+константой `TURN_MONTHS` в `functions/time_models.py`. За ход движок выполняет
+ровно столько месячных подшагов добычи, сколько указано в календаре, затем
+производит ресурсы, покрывает расход и применяет ресурсные эффекты.
+
+`consumption_per_month` задаётся **за один месяц**, поэтому фактический расход
+за ход равен `consumption_per_month × TURN_MONTHS`. `batches` остаётся
+производственной нормой
+за исторический шестимесячный период и масштабируется как
+`batches × TURN_MONTHS / 6`.
 
 ## Основные правила интерфейса
 
@@ -13,96 +20,100 @@
 - у ресурса нет скрытого типа; добывается или производится он только потому,
   что на него ссылается соответствующее правило;
 - содержимое склада является состоянием и находится в основной стате;
-- вместимость склада, доступность, качество и расход являются настройками YAML;
+- вместимость склада, доступность, качество и расход являются настройками TOML;
 - работников вручную распределять не нужно.
 
 ## Минимальная конфигурация
 
-```yaml
-НАСТРОЙКА ПРОМЫШЛЕННОСТИ YAML
-schema_version: 2
-resources:
-  iron:
-    name: Железо
-    group: ferrous
-    availability: 80
-    quality: 70
-    consumption: 25
-    storage_capacity: 2000
-extraction:
-  ferrous:
-    intensity: 80
-    priority: 2
-production: []
-effects: []
-КОНЕЦ НАСТРОЙКИ ПРОМЫШЛЕННОСТИ
+```toml
+schema_version = 3
+production = []
+effects = []
+
+[resources.iron]
+name = "Железо"
+group = "ferrous"
+availability = 80.0
+quality = 70.0
+consumption_per_month = 25.0
+storage_capacity = 2000.0
+
+[extraction.ferrous]
+intensity = 80.0
+priority = 2
 ```
 
-Маркеры нужны консольному вводу, чтобы понять границы YAML. Внутри находится
-обычный YAML, который читается через `yaml.safe_load` и проверяется Pydantic.
-Неизвестное поле является ошибкой, поэтому опечатка не будет молча потеряна.
+Служебных строк начала и конца больше нет. `schema_version = 3` однозначно
+обозначает начало TOML; в составном input-файле конфигурация заканчивается
+перед `СОСТОЯНИЕ РЕСУРСОВ`, а в отдельном `.toml` — концом файла. Неизвестное
+поле является ошибкой, поэтому опечатка не будет молча потеряна.
 
 ## Произвольный новый ресурс
 
 Глобально добавлять enum или менять Python-код не нужно:
 
-```yaml
-resources:
-  reinforced_glass:
-    name: Армированное стекло
-    group: construction
-    availability: 72
-    quality: 81
-    consumption: 20
-    storage_capacity: 300
+```toml
+[resources.reinforced_glass]
+name = "Армированное стекло"
+group = "construction"
+availability = 72.0
+quality = 81.0
+consumption_per_month = 20.0
+storage_capacity = 300.0
 ```
 
 Тот же ресурс сразу можно использовать в производстве:
 
-```yaml
-production:
-  - id: reinforced_glass_production
-    name: Производство армированного стекла
-    active: true
-    batches: 20
-    turns: 4
-    inputs:
-      basic_building_materials: 2
-      silicon: 0.5
-    outputs:
-      reinforced_glass: 1
-    byproducts:
-      slag: 0.1
+```toml
+[[production]]
+id = "reinforced_glass_production"
+name = "Производство армированного стекла"
+active = true
+batches = 20.0
+months = 24
+inputs = { basic_building_materials = 2.0, silicon = 0.5 }
+outputs = { reinforced_glass = 1.0 }
+byproducts = { slag = 0.1 }
 ```
 
-`turns: null` означает бессрочное правило. Число фактически выполненных партий
+Отсутствующее поле `months` означает бессрочное правило. Число фактически выполненных партий
 ограничивается сырьём и свободной вместимостью выходных складов. После попытки
-выполнения срок уменьшается на один ход.
+выполнения срок уменьшается на фактическую длительность хода. Старое поле
+`turns` всё ещё принимается при чтении как число шестимесячных периодов, но
+новый вывод всегда использует календарные месяцы.
 
 ## Добыча
 
 Ключ после `extraction` — alias фиксированной группы или зарегистрированного
 ресурса. Группа имеет приоритет при совпадении имён.
 
-```yaml
-extraction:
-  ferrous:
-    intensity: 80
-    priority: 1
-  iron:
-    intensity: 100
-    priority: 2
+```toml
+[extraction.ferrous]
+intensity = 80.0
+priority = 2
+
+[extraction.iron]
+intensity = 100.0
+priority = 1
 ```
 
-`intensity` — загрузка направления от 0 до 100. `priority` — относительная
-доля общего бюджета ресурсодобычи. Общая мощность равна
+`intensity` — загрузка направления от 0 до 100. `priority` — место в очереди:
+`1` означает самый высокий приоритет, `2` — следующий и так далее. Если
+последний используемый ранг равен `N`, вес направления равен
+`N - priority + 1`. Общая мощность равна
 `расходы на ресурсодобычу × 300`; движок сам делит работников и мощность между
-правилами. Индивидуальное правило исключает свой ресурс из группового, поэтому
-двойной добычи нет.
+правилами. Заполненное направление не отнимает долю у остальных, а мощности и
+работники перераспределяются заново перед каждым месячным подшагом.
+Индивидуальное правило исключает свой ресурс из группового, поэтому двойной
+добычи нет.
+
+Старое имя `consumption` и отмеченный маркерами YAML v2 всё ещё принимаются
+при чтении, но новый вывод всегда использует TOML v3 и явное
+`consumption_per_month`.
 
 ## Состояние ресурсов и групп
 
-Основная промышленная стата выводит рассчитанные данные отдельно от YAML:
+Основная промышленная стата выводит рассчитанные данные отдельно от TOML:
 
 ```text
 СОСТОЯНИЕ ГРУПП
@@ -125,42 +136,30 @@ extraction:
 формулу. Одна формула применяется отдельно к каждой цели; `target` означает
 текущее значение этой цели, а результат формулы — прибавку к нему.
 
-```yaml
-effects:
-  - id: freshwater_population_growth
-    dependencies:
-      - resource: fresh_water
-    targets:
-      - population_growth
-    formula: -target * resources.fresh_water.deficit * 0.2
+```toml
+[[effects]]
+id = "freshwater_population_growth"
+dependencies = [{ resource = "fresh_water" }]
+targets = ["population_growth"]
+formula = "-target * resources.fresh_water.deficit * 0.2"
 
-  - id: construction_infrastructure_expenses
-    dependencies:
-      - group: construction
-    targets:
-      - infrastructure_expenses
-    formula: >-
-      target * (0.4 * groups.construction.deficit -
-      min(0.25 * groups.construction.surplus, 0.2))
+[[effects]]
+id = "construction_infrastructure_expenses"
+dependencies = [{ group = "construction" }]
+targets = ["infrastructure_expenses"]
+formula = "target * (0.4 * groups.construction.deficit - min(0.25 * groups.construction.surplus, 0.2))"
 
-  - id: hydrocarbons_transport
-    dependencies:
-      - group: hydrocarbons
-    targets:
-      - logistic
-      - trade_efficiency
-    formula: -target * groups.hydrocarbons.deficit * 0.08
+[[effects]]
+id = "hydrocarbons_transport"
+dependencies = [{ group = "hydrocarbons" }]
+targets = ["logistic", "trade_efficiency"]
+formula = "-target * groups.hydrocarbons.deficit * 0.08"
 
-  - id: glass_safety
-    dependencies:
-      - resource: reinforced_glass
-      - group: construction
-    targets:
-      - industrial_accident_chance
-      - population_epidemic_chance
-    formula: >-
-      target * (0.12 * groups.construction.deficit -
-      min(0.05 * resources.reinforced_glass.surplus, 0.2))
+[[effects]]
+id = "glass_safety"
+dependencies = [{ resource = "reinforced_glass" }, { group = "construction" }]
+targets = ["industrial_accident_chance", "population_epidemic_chance"]
+formula = "target * (0.12 * groups.construction.deficit - min(0.05 * resources.reinforced_glass.surplus, 0.2))"
 ```
 
 Каждая объявленная зависимость предоставляет только два нормированных числа:
@@ -191,22 +190,21 @@ surplus = остаток_на_складе / D
 `industry`, `agriculture`, `inner_politics` и `probabilities`. Для уникального
 имени раздел не нужен:
 
-```yaml
-targets:
-  - trade_efficiency
-  - logistic
-  - food_diversity
-  - contentment
-  - research_success_chance
-  - industrial_accident_chance
+```toml
+targets = [
+    "trade_efficiency",
+    "logistic",
+    "food_diversity",
+    "contentment",
+    "research_success_chance",
+    "industrial_accident_chance",
+]
 ```
 
 Если одно имя есть в нескольких разделах, программа попросит уточнить раздел:
 
-```yaml
-targets:
-  - industry.expected_wastes
-  - agriculture.expected_wastes
+```toml
+targets = ["industry.expected_wastes", "agriculture.expected_wastes"]
 ```
 
 Отдельно сохраняются два удобных специальных alias:
@@ -228,7 +226,7 @@ targets:
 не выйдет за этот диапазон, а казна без нижнего ограничения может остаться
 отрицательной. Списки, словари, вложенные объекты и несуществующие показатели
 указывать нельзя. Производные показатели изменяются после собственного
-пересчёта: этап выбирается движком автоматически и не задаётся в YAML.
+пересчёта: этап выбирается движком автоматически и не задаётся в TOML.
 
 Если в модель страны добавить новую числовую стату, её имя сразу станет
 доступно в `targets`; отдельный enum или реестр пополнять не требуется.
@@ -253,7 +251,7 @@ freshwater_society:
 uv run python create_basic_country.py --turns 1 --seed 1
 ```
 
-В основной стате появится отдельный читаемый отчёт без YAML:
+В основной стате появится отдельный читаемый отчёт без конфигурационных полей:
 
 ```text
 ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ
@@ -265,7 +263,25 @@ freshwater_society:
 
 Нулевая поправка означает не потерю эффекта, а отсутствие дефицита или
 профицита, на которые ссылается формула. Редактируемая формула, зависимости и
-полный список целей остаются в отдельном `*_industry_settings.txt`.
+полный список целей остаются в отдельном `*_industry_settings.toml`.
+
+## Перенос старого YAML
+
+Старый блок между строками `НАСТРОЙКА ПРОМЫШЛЕННОСТИ YAML` и
+`КОНЕЦ НАСТРОЙКИ ПРОМЫШЛЕННОСТИ` всё ещё можно прочитать напрямую. Для
+одноразового преобразования всего input-файла без этих строк:
+
+```bash
+uv run python convert_industry_config.py old_input.txt new_input.txt
+```
+
+Для отдельного файла настроек:
+
+```bash
+uv run python convert_industry_config.py old_settings.txt new_settings.toml --settings-only
+```
+
+Исходный файл не перезаписывается, если явно не передать тот же путь.
 
 ## Python API
 
@@ -284,7 +300,7 @@ industry.register_resource(
         group=ExtractionGroup.CONSTRUCTION,
         stockpile=25,
         storage_capacity=300,
-        consumption_per_turn=20,
+        consumption_per_month=20,
     )
 )
 ```

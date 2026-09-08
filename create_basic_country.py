@@ -14,7 +14,12 @@ from modules.run_finalize import (
 from modules.run_skip_move import TurnEngine
 from modules.run_start_skip import InputMode, StatsInput
 from modules.skip_move_types import SkipMoveReport, WorldState
-from stats.industry_text import CONFIG_END, CONFIG_START, LEGACY_CONFIG_START
+from stats.industry_text import (
+    CONFIG_END,
+    CONFIG_START,
+    LEGACY_CONFIG_START,
+    TOML_SCHEMA_PATTERN,
+)
 from utils.user_io import ConsoleIO
 
 
@@ -33,33 +38,48 @@ class _NonInteractiveCreatorIO(ConsoleIO):
 
 
 def read_source(path: Path) -> tuple[list[str], str | None]:
-    """Read creator answers and an optional readable industry block."""
+    """Read creator answers and an optional marker-free TOML configuration."""
     answers: list[str] = []
     configuration: list[str] = []
-    inside_configuration = False
+    configuration_format: str | None = None
     configuration_found = False
     state_found = False
 
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
+        if configuration_format == "toml":
+            if line == RESOURCE_STATE_START:
+                configuration_format = None
+                state_found = True
+                configuration.append(line)
+                continue
+            configuration.append(raw_line.rstrip())
+            continue
+        if configuration_format == "yaml":
+            configuration.append(raw_line.rstrip())
+            if line == CONFIG_END:
+                configuration_format = None
+            continue
         if not line or line.startswith("#"):
             continue
         if line == LEGACY_CONFIG_START:
             raise ValueError(
                 "Старый строковый формат промышленности удалён; "
-                "используйте YAML schema_version: 2"
+                "используйте TOML schema_version = 3"
             )
         if line == CONFIG_START:
             if configuration_found:
                 raise ValueError("Найдено несколько настроек промышленности")
             configuration_found = True
-            inside_configuration = True
+            configuration_format = "yaml"
             configuration.append(line)
             continue
-        if inside_configuration:
+        if TOML_SCHEMA_PATTERN.fullmatch(line):
+            if configuration_found:
+                raise ValueError("Найдено несколько настроек промышленности")
+            configuration_found = True
+            configuration_format = "toml"
             configuration.append(raw_line.rstrip())
-            if line == CONFIG_END:
-                inside_configuration = False
             continue
         if line == RESOURCE_STATE_START:
             if state_found:
@@ -72,7 +92,7 @@ def read_source(path: Path) -> tuple[list[str], str | None]:
             continue
         answers.append(line)
 
-    if inside_configuration:
+    if configuration_format == "yaml":
         raise ValueError(f"После {CONFIG_START!r} отсутствует {CONFIG_END!r}")
     config_text = "\n".join(configuration) if configuration else None
     return answers, config_text
@@ -189,7 +209,7 @@ def main() -> None:
         "--industry-settings-output",
         type=Path,
         help=(
-            "Куда записать отдельные настройки промышленности. "
+            "Куда записать отдельные TOML-настройки промышленности. "
             "По умолчанию — рядом с основной статой."
         ),
     )
@@ -220,7 +240,7 @@ def main() -> None:
         encoding="utf-8",
     )
     settings_output = args.industry_settings_output or args.output.with_name(
-        f"{args.output.stem}_industry_settings.txt"
+        f"{args.output.stem}_industry_settings.toml"
     )
     settings_output.parent.mkdir(parents=True, exist_ok=True)
     settings_output.write_text(
@@ -228,7 +248,7 @@ def main() -> None:
         encoding="utf-8",
     )
     print(f"Страна базового режима создана: {args.output}")
-    print(f"Настройки промышленности: {settings_output}")
+    print(f"TOML промышленности: {settings_output}")
     print(f"Эффекты промышленности: {len(country.industry.effects)}")
     if args.turns:
         print(f"Рассчитано ходов: {args.turns}")

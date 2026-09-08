@@ -10,10 +10,11 @@ from functions.probability_models import (
 )
 from functions.resource_models import (
     GROUP_PROFILES,
+    extraction_priority_weight,
     national_extraction_capacity,
     specialist_capacity,
 )
-from functions.time_models import TURN_MONTHS, TURN_YEARS
+from functions.time_models import TURN_MONTHS, TURN_SCALE, TURN_YEARS
 from modules.run_skip_move import TurnEngine
 from modules.skip_move_rules import AtteriumSkipMoveRules
 from modules.skip_move_types import WorldState
@@ -64,15 +65,65 @@ def configure_iron_extraction(bundle) -> None:
     )
 
 
-def test_turn_duration_is_three_months():
-    assert TURN_YEARS == 0.25
-    assert TURN_MONTHS == 3
+def test_turn_duration_constants_stay_synchronized():
+    assert TURN_YEARS == TURN_MONTHS / 12
+    assert TURN_SCALE == TURN_MONTHS / 6
 
 
 def test_national_extraction_capacity_comes_from_existing_spending():
     assert national_extraction_capacity(341.3) == pytest.approx(102_390)
     assert national_extraction_capacity(0) == 0
     assert national_extraction_capacity(-10) == 0
+
+
+def test_first_extraction_priority_is_the_strongest_rank():
+    assert extraction_priority_weight(1, 3) == pytest.approx(3)
+    assert extraction_priority_weight(2, 3) == pytest.approx(2)
+    assert extraction_priority_weight(3, 3) == pytest.approx(1)
+
+
+def test_full_extraction_target_does_not_consume_other_priorities():
+    bundle = make_basic_bundle()
+    iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
+    oil = bundle.industry.resource_inventory.resources[ResourceType.OIL]
+    iron.enabled = True
+    iron.storage_capacity = 10_000
+    oil.enabled = True
+    oil.stockpile = 100
+    oil.storage_capacity = 100
+    bundle.industry.extraction_operations = [
+        ExtractionOperation(target="oil", intensity=100, priority=1),
+        ExtractionOperation(target="iron", intensity=100, priority=2),
+    ]
+
+    engine = make_engine(bundle)
+
+    assert engine._extraction_capacities() == {
+        "iron": pytest.approx(
+            national_extraction_capacity(bundle.economy.gov_wastes[3])
+        )
+    }
+
+
+def test_extraction_intensity_controls_available_capacity_linearly():
+    low = make_basic_bundle()
+    high = make_basic_bundle()
+    for bundle, intensity in ((low, 40), (high, 100)):
+        iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
+        iron.enabled = True
+        iron.storage_capacity = 10_000
+        bundle.industry.extraction_operations = [
+            ExtractionOperation(
+                target="iron",
+                intensity=intensity,
+                priority=1,
+            )
+        ]
+
+    low_capacity = make_engine(low)._extraction_capacities()["iron"]
+    high_capacity = make_engine(high)._extraction_capacities()["iron"]
+
+    assert high_capacity == pytest.approx(low_capacity / 0.4)
 
 
 def test_atterium_extraction_uses_resource_spending_not_republic_spending():
@@ -228,9 +279,9 @@ def test_specialist_capacity_matches_population_education_model():
     assert specialist_capacity(1_000_000, 100, 100) <= 150_000
 
 
-def test_quarter_hazard_and_accident_risk_are_monotonic():
+def test_turn_hazard_and_accident_risk_are_monotonic():
     assert half_year_chance(0) == 0
-    expected = (1 - np.exp(-0.05)) * 100
+    expected = (1 - np.exp(-0.2 * TURN_YEARS)) * 100
     assert turn_chance(0.2) == pytest.approx(expected)
     assert half_year_chance(0.2) == pytest.approx(expected)
     safe = industrial_accident_chance(40, 99, 95, 0, 100)
@@ -270,7 +321,7 @@ def test_major_probability_is_informational_and_does_not_trigger_event(
 
     monkeypatch.setattr(
         "functions.probability_models.industrial_accident_chance",
-        lambda *args: 100.0,
+        lambda *args, **kwargs: 100.0,
     )
     engine = make_engine(bundle)
     report = engine.run()
@@ -316,7 +367,7 @@ def test_production_recipe_consumes_inputs_and_creates_output_and_slag():
     make_engine(bundle, seed=501).run()
 
     result = bundle.industry.last_production[0]
-    assert result.completed_batches == 5
+    assert result.completed_batches == pytest.approx(5 * TURN_SCALE)
     assert inventory[ResourceType.IRON].stockpile < 20
     assert inventory[ResourceType.BASIC_BUILDING_MATERIALS].stockpile > 0
     assert inventory[ResourceType.SLAG].stockpile > 0
@@ -326,7 +377,7 @@ def test_resource_shortage_reduces_legacy_civil_security():
     bundle = make_basic_bundle()
     bundle.industry.civil_security = 80
     bundle.industry.recalculate_derived_fields()
-    efficiency_before = bundle.industry.civil_efficiency
+    civil_usage_before = bundle.industry.civil_usage
     iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
     iron.enabled = True
     iron.stockpile = 25
@@ -337,15 +388,19 @@ def test_resource_shortage_reduces_legacy_civil_security():
     engine.run()
 
     preserved_stock = (
-        25 * engine.state.probabilities.storage_preservation / 100
+        25
+        * (engine.state.probabilities.storage_preservation / 100) ** TURN_SCALE
     )
     assert bundle.industry.resource_shortages[ResourceType.IRON] == (
-        pytest.approx(100 - preserved_stock)
+        pytest.approx(max(100 * TURN_MONTHS - preserved_stock, 0))
     )
     assert bundle.industry.civil_security == pytest.approx(
-        round((80 + preserved_stock) / 2, 2)
+        round(
+            (80 + preserved_stock / (100 * TURN_MONTHS) * 100) / 2,
+            2,
+        )
     )
-    assert bundle.industry.civil_efficiency < efficiency_before
+    assert bundle.industry.civil_usage < civil_usage_before
 
 
 def test_worker_allocations_cannot_exceed_available_pool():
@@ -364,7 +419,7 @@ def test_worker_allocations_cannot_exceed_available_pool():
     assert 0 < extracted < full_extraction
 
 
-def test_debt_interest_uses_quarter_and_credit_increases_debt():
+def test_debt_interest_uses_turn_years_and_credit_increases_debt():
     with_debt = make_basic_bundle(budget=1_000)
     without_debt = make_basic_bundle(budget=1_000)
     with_debt.economy.public_debt = 100
@@ -373,9 +428,9 @@ def test_debt_interest_uses_quarter_and_credit_increases_debt():
     debt_report = make_engine(with_debt).run()
     base_report = make_engine(without_debt).run()
 
-    assert debt_report.debt_interest == pytest.approx(2.5)
+    assert debt_report.debt_interest == pytest.approx(10 * TURN_YEARS)
     assert debt_report.total_wastes == pytest.approx(
-        base_report.total_wastes + 2.5
+        base_report.total_wastes + debt_report.debt_interest
     )
 
     credit_bundle = make_basic_bundle(budget=-10_000)
@@ -415,4 +470,4 @@ def test_new_social_fields_roundtrip_and_probability_output():
     assert parsed.social_mobility == 64
     assert parsed.war_fatigue == 18
     assert "НАДЁЖНОСТЬ СИСТЕМ" in probability_text
-    assert "ВЕРОЯТНОСТИ СОБЫТИЙ ЗА КВАРТАЛ" in probability_text
+    assert "ВЕРОЯТНОСТИ СОБЫТИЙ ЗА ХОД" in probability_text
