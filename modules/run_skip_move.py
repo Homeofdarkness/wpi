@@ -47,6 +47,10 @@ from modules.skip_move_types import (
     TurnLedger,
     WorldState,
 )
+from stats.industry_components import (
+    ExtractionDiagnostic,
+    IndustrialReadinessReport,
+)
 from stats.industry_effects import (
     EffectPhase,
     IndustrialEffect,
@@ -83,6 +87,7 @@ class TurnEngine:
     _base_population_growth: float = field(default=0.0, init=False)
     _stability_at_turn_start: float = field(default=0.0, init=False)
     _turn_resource_demands: dict = field(default_factory=dict, init=False)
+    _resource_coverage: float = field(default=0.0, init=False)
     _effect_bindings: list[tuple[IndustrialEffect, ResolvedEffectTarget]] = (
         field(default_factory=list, init=False)
     )
@@ -105,6 +110,7 @@ class TurnEngine:
         self.resource_effect_wastes = 0.0
         self.population_growth_breakdown = None
         self.state.industry.last_effects = []
+        self.state.industry.last_readiness = None
         economy = self.state.economy
         self._stability_at_turn_start = float(economy.stability)
         self._base_population_growth = float(economy.income or 0.0)
@@ -114,6 +120,7 @@ class TurnEngine:
                 self.state.industry.resource_demands.items()
             )
         }
+        self._resource_coverage = float(self.state.industry.civil_security)
         budget_before = float(economy.current_budget)
         logistic_wastes = self._logistic_wastes()
         results = self._prepare_calculations(logistic_wastes)
@@ -272,15 +279,16 @@ class TurnEngine:
             (operation.priority for operation in operations),
             default=1,
         )
-        priority_weights = {
-            operation.target_key: resources.extraction_priority_weight(
+        allocation_weights = {
+            operation.target_key: resources.extraction_allocation_weight(
                 operation.priority,
                 lowest_priority,
+                operation.intensity,
             )
             for operation in operations
         }
-        total_priority_weight = sum(priority_weights.values())
-        if total_priority_weight <= 0:
+        total_allocation_weight = sum(allocation_weights.values())
+        if total_allocation_weight <= 0:
             return {}
         extraction_spending = self.rules.get_resource_extraction_budget(
             self._ctx()
@@ -291,10 +299,8 @@ class TurnEngine:
         return {
             operation.target_key: (
                 national_capacity
-                * priority_weights[operation.target_key]
-                / total_priority_weight
-                * operation.intensity
-                / 100
+                * allocation_weights[operation.target_key]
+                / total_allocation_weight
             )
             for operation in operations
         }
@@ -653,6 +659,16 @@ class TurnEngine:
         )
 
     def _resolve_industrial_resources(self) -> None:
+        state = self.state.industry
+        state.last_turn_calculated = True
+        state.last_stock_before = {
+            resource: float(resource_state.stockpile)
+            for resource, resource_state in (
+                state.resource_inventory.resources.items()
+            )
+            if resource_state.enabled
+        }
+        state.last_resource_consumed = {}
         self._advance_industrial_resources()
         self._process_production_rules()
         self._spend_industrial_resources()
@@ -721,6 +737,7 @@ class TurnEngine:
         # efficiency and cost fields before trade and income use them.
         state.recalculate_derived_fields()
         self._apply_industrial_effects(EffectPhase.INDUSTRY_DERIVED)
+        self._calculate_industrial_readiness()
         state.consumption_of_goods = industry.consumption_of_goods(
             economy.population_count,
             economy.trade_usage,
@@ -746,11 +763,88 @@ class TurnEngine:
             state.max_potential,
             state.expected_wastes,
         )
+        if state.last_readiness is not None:
+            state.industry_income *= (
+                state.last_readiness.industry_income_factor
+            )
+
+    def _calculate_industrial_readiness(self) -> None:
+        economy = self.state.economy
+        state = self.state.industry
+        politics = self.state.inner_politics
+        qualification = state.usages[3] if len(state.usages) > 3 else 0.0
+        expected_infrastructure = self.calendar.scale_flow(
+            expected_infrastructure_wastes(economy.population_count)
+        )
+        actual_infrastructure = max(
+            self.calendar.scale_flow(economy.gov_wastes[0])
+            + self.resource_effect_wastes,
+            0.0,
+        )
+        infrastructure_coverage = (
+            min(actual_infrastructure / expected_infrastructure * 100.0, 100.0)
+            if expected_infrastructure > 0
+            else 100.0
+        )
+        components = {
+            "technology": industry.technology_readiness(
+                state.processing_efficiency,
+                state.standardization,
+            ),
+            "personnel": industry.personnel_readiness(
+                qualification,
+                politics.education_level,
+                politics.knowledge_level,
+            ),
+            "infrastructure": industry.infrastructure_readiness(
+                state.logistic,
+                infrastructure_coverage,
+            ),
+            "resources": min(max(self._resource_coverage, 0.0), 100.0),
+            "institutions": industry.institutional_readiness(
+                politics.state_apparatus_efficiency,
+                politics.corruption_level,
+            ),
+            "market": industry.market_readiness(
+                state.tvr1,
+                state.tvr2,
+                economy.trade_efficiency,
+                politics.poor_level,
+            ),
+        }
+        readiness = industry.industrial_readiness(components)
+        strain = industry.industrial_strain(readiness)
+        effective_quality = trade.effective_quality_shares(
+            economy.high_quality_percent,
+            economy.mid_quality_percent,
+            economy.low_quality_percent,
+            strain,
+        )
+        state.last_readiness = IndustrialReadinessReport(
+            **components,
+            readiness=readiness,
+            strain=strain,
+            industry_income_factor=industry.industrial_income_factor(strain),
+            effective_high_quality=effective_quality[0],
+            effective_mid_quality=effective_quality[1],
+            effective_low_quality=effective_quality[2],
+        )
 
     def _advance_industrial_resources(self) -> None:
         state = self.state.industry
         operational = self.state.probabilities
         state.last_extracted = {}
+        diagnostics: dict[str, dict] = {
+            operation.target_key: {
+                "operation": operation,
+                "allocated_capacity": 0.0,
+                "extracted": 0.0,
+                "factor_weight": 0.0,
+                "factor_totals": {},
+                "stage_outputs": {},
+            }
+            for operation in self._active_extraction_operations()
+        }
         for _ in range(self.calendar.months):
             capacities = self._extraction_capacities()
             allocations = self._worker_allocations(capacities)
@@ -758,6 +852,10 @@ class TurnEngine:
                 operation_capacity = capacities.get(operation.target_key, 0.0)
                 if operation_capacity <= 0:
                     continue
+                diagnostic = diagnostics[operation.target_key]
+                diagnostic["allocated_capacity"] += (
+                    operation_capacity * MONTH_YEARS
+                )
                 target_states = self._extraction_targets(operation)
                 shares = self._extraction_shares(target_states)
                 ordinary, specialists, forced = allocations[
@@ -778,6 +876,22 @@ class TurnEngine:
                         state.workforce.social_support,
                         operational.workforce_attendance,
                     )
+                    target_group = state.resolve_extraction_target(operation)[
+                        0
+                    ]
+                    profile = resources.GROUP_PROFILES[target_group]
+                    factors = resources.extraction_factor_breakdown(
+                        accessibility=resource_state.accessibility,
+                        quality=resource_state.quality,
+                        technology=state.processing_efficiency,
+                        effective_labor=labor,
+                        equipment_availability=(
+                            operational.equipment_availability
+                        ),
+                        process_yield=operational.process_yield,
+                        profile=profile,
+                        stage=resource_state.stage,
+                    )
                     extracted = resources.extraction_output(
                         extraction_capacity=(operation_capacity * share),
                         accessibility=resource_state.accessibility,
@@ -789,11 +903,24 @@ class TurnEngine:
                         ),
                         process_yield=operational.process_yield,
                         years=MONTH_YEARS,
-                        profile=resources.GROUP_PROFILES[
-                            state.resolve_extraction_target(operation)[0]
-                        ],
+                        profile=profile,
+                        stage=resource_state.stage,
                     )
                     transfer = resource_state.collect(extracted)
+                    factor_weight = operation_capacity * share * MONTH_YEARS
+                    diagnostic["factor_weight"] += factor_weight
+                    factor_totals = diagnostic["factor_totals"]
+                    for name, value in factors.items():
+                        factor_totals[name] = (
+                            factor_totals.get(name, 0.0)
+                            + value * factor_weight
+                        )
+                    diagnostic["extracted"] += transfer.actual
+                    stage_outputs = diagnostic["stage_outputs"]
+                    stage_outputs[resource_state.stage] = (
+                        stage_outputs.get(resource_state.stage, 0.0)
+                        + transfer.actual
+                    )
                     state.last_extracted[resource_state.resource] = (
                         state.last_extracted.get(
                             resource_state.resource,
@@ -801,6 +928,30 @@ class TurnEngine:
                         )
                         + transfer.actual
                     )
+        state.last_extraction_diagnostics = []
+        for item in diagnostics.values():
+            factor_weight = float(item["factor_weight"])
+            factor_totals = item["factor_totals"]
+            averaged_factors = (
+                {
+                    name: total / factor_weight
+                    for name, total in factor_totals.items()
+                }
+                if factor_weight > 0
+                else {}
+            )
+            operation = item["operation"]
+            state.last_extraction_diagnostics.append(
+                ExtractionDiagnostic(
+                    target=operation.target_key,
+                    priority=operation.priority,
+                    intensity=operation.intensity,
+                    allocated_capacity=item["allocated_capacity"],
+                    extracted=item["extracted"],
+                    factors=averaged_factors,
+                    stage_outputs=item["stage_outputs"],
+                )
+            )
         for resource_state in state.resource_inventory.resources.values():
             resource_state.apply_storage_preservation(
                 operational.storage_preservation,
@@ -889,11 +1040,13 @@ class TurnEngine:
         for resource, amount in self._turn_resource_demands.items():
             transfer = state.spend_resource(resource, amount)
             state.resource_shortages[resource] = transfer.shortage
+            state.last_resource_consumed[resource] = transfer.actual
             total_requested += transfer.requested
             total_spent += transfer.actual
         if total_requested <= 0:
             return
         resource_security = total_spent / total_requested * 100
+        self._resource_coverage = resource_security
         state.civil_security = round(
             (state.civil_security + resource_security) / 2,
             2,
@@ -941,9 +1094,21 @@ class TurnEngine:
             economy.trade_usage,
             economy.trade_efficiency,
             economy.trade_wastes,
-            economy.high_quality_percent,
-            economy.mid_quality_percent,
-            economy.low_quality_percent,
+            (
+                industry_state.last_readiness.effective_high_quality
+                if industry_state.last_readiness is not None
+                else economy.high_quality_percent
+            ),
+            (
+                industry_state.last_readiness.effective_mid_quality
+                if industry_state.last_readiness is not None
+                else economy.mid_quality_percent
+            ),
+            (
+                industry_state.last_readiness.effective_low_quality
+                if industry_state.last_readiness is not None
+                else economy.low_quality_percent
+            ),
             economy.forex,
             economy.valgery,
         )
@@ -1101,14 +1266,18 @@ class TurnEngine:
             stability_policy_adjustment,
             stability_effect_adjustment,
         ) = self._update_stability(contentment_coefficient)
+        # Stability modifiers belong to the current turn only.  They may
+        # affect trade and the income multiplier while the turn is being
+        # resolved, but the primary country stat is not progression and must
+        # be returned unchanged to the caller.
+        economy.stability = round(self._stability_at_turn_start)
         ledger = replace(ledger, stability_income_factor=boost)
         economy.money_income = ledger.net_income
         budget_after_boost = (
             budget_before + ledger.net_income + logistic_discount
         )
         economy.current_budget = budget_after_boost
-        economy.stability = round(stability_after)
-        stability_after = float(economy.stability)
+        stability_after = float(round(stability_after))
         self._update_education()
         self._update_military_equipment()
         money_income_before_effects = float(economy.money_income)

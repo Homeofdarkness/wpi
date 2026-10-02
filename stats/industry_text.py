@@ -15,6 +15,7 @@ from functions.time_models import REFERENCE_TURN_MONTHS
 from stats.industry_components import (
     ExtractionGroup,
     ExtractionOperation,
+    IndustrialStage,
     ResourceRegistration,
     ResourceState,
     ResourceType,
@@ -58,6 +59,7 @@ class _ResourceConfig(pydantic.BaseModel):
 
     name: str = pydantic.Field(..., min_length=1)
     group: ExtractionGroup
+    stage: IndustrialStage = IndustrialStage.MACHINE
     availability: float = pydantic.Field(100.0, ge=0, le=100)
     quality: float = pydantic.Field(100.0, ge=0, le=100)
     consumption_per_month: float = pydantic.Field(
@@ -264,6 +266,7 @@ def render_industry_configuration(
                 f"[resources.{state.resource.value}]",
                 f"name = {_toml_string(state.definition.name)}",
                 f"group = {_toml_string(state.definition.group.value)}",
+                f"stage = {_toml_string(state.stage.value)}",
                 f"availability = {_toml_float(state.accessibility)}",
                 f"quality = {_toml_float(state.quality)}",
                 "consumption_per_month = "
@@ -458,6 +461,7 @@ def parse_industry_configuration(text: str) -> IndustryTextState | None:
             resource=alias,
             name=item.name,
             group=item.group,
+            stage=item.stage,
             accessibility=item.availability,
             quality=item.quality,
             consumption_per_month=item.consumption_per_month,

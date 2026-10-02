@@ -8,8 +8,11 @@ from stats.derived_fields import (
     populate_basic_inner_politics,
 )
 from stats.industry_components import (
+    ExtractionDiagnostic,
     ExtractionGroup,
     ExtractionOperation,
+    IndustrialReadinessReport,
+    IndustrialStage,
     IndustrialWorkforce,
     ResourceInventory,
     ResourceRegistration,
@@ -24,6 +27,7 @@ from stats.industry_effects import (
     default_industrial_effects,
 )
 from stats.industry_text import (
+    GROUP_NAMES,
     parse_industry_configuration,
     render_group_state_table,
     render_industry_configuration,
@@ -32,6 +36,25 @@ from stats.industry_text import (
 from stats.pretty_specs import get_layout_for_class
 from stats.production_components import ProductionResult, ProductionRule
 from stats.stats_base import StatsBase
+from utils.reporting import boxed_sections, boxed_table
+
+
+_STAGE_LABELS: dict[IndustrialStage, str] = {
+    IndustrialStage.MANUAL: "Ручной",
+    IndustrialStage.STEAM: "Паромеханический",
+    IndustrialStage.MACHINE: "Машинный",
+    IndustrialStage.ELECTRIFIED: "Электрифицированный",
+    IndustrialStage.MASS_PRODUCTION: "Массовое производство",
+}
+_STAGE_ORDER = tuple(IndustrialStage)
+_FACTOR_LABELS = {
+    "labor": "рабочая сила",
+    "accessibility": "доступность",
+    "quality": "качество",
+    "technology": "технологии",
+    "equipment": "оборудование",
+    "process_yield": "выход продукции",
+}
 
 
 class EconomyStatsBase(StatsBase):
@@ -136,6 +159,23 @@ class IndustrialStats(StatsBase):
     last_extracted: dict[ResourceType, float] = pydantic.Field(
         default_factory=dict
     )
+    last_extraction_diagnostics: list[ExtractionDiagnostic] = pydantic.Field(
+        default_factory=list,
+        exclude=True,
+    )
+    last_stock_before: dict[ResourceType, float] = pydantic.Field(
+        default_factory=dict,
+        exclude=True,
+    )
+    last_resource_consumed: dict[ResourceType, float] = pydantic.Field(
+        default_factory=dict,
+        exclude=True,
+    )
+    last_turn_calculated: bool = pydantic.Field(False, exclude=True)
+    last_readiness: IndustrialReadinessReport | None = pydantic.Field(
+        None,
+        exclude=True,
+    )
     production_rules: list[ProductionRule] = pydantic.Field(
         default_factory=list
     )
@@ -195,6 +235,7 @@ class IndustrialStats(StatsBase):
             resource=registration.resource,
             name=registration.name,
             group=registration.group,
+            stage=registration.stage,
             enabled=True,
             stockpile=registration.stockpile,
             storage_capacity=registration.storage_capacity,
@@ -356,71 +397,378 @@ class IndustrialStats(StatsBase):
             )
         )
 
+    def _stage_distribution(self) -> dict[IndustrialStage, float]:
+        distribution = dict.fromkeys(_STAGE_ORDER, 0.0)
+        for resource, extracted in self.last_extracted.items():
+            state = self.resource_inventory.resources.get(resource)
+            if state is not None and state.enabled and extracted > 0:
+                distribution[state.stage] += extracted
+        return distribution
+
+    def render_industrialization_profile(self) -> str:
+        distribution = self._stage_distribution()
+        total = sum(distribution.values())
+        if total > 0:
+            dominant = max(distribution, key=distribution.get)
+            dominant_share = distribution[dominant] / total * 100
+            mechanization = (
+                sum(
+                    distribution[stage]
+                    * (_STAGE_ORDER.index(stage) / (len(_STAGE_ORDER) - 1))
+                    for stage in _STAGE_ORDER
+                )
+                / total
+                * 100
+            )
+            profile_rows = [
+                ("Преобладающий этап", _STAGE_LABELS[dominant]),
+                ("Доля преобладающего этапа", f"{dominant_share:.1f}%"),
+                ("Степень механизации", f"{mechanization:.1f}%"),
+            ]
+            structure_rows = [
+                (_STAGE_LABELS[stage], f"{amount / total * 100:.1f}%")
+                for stage, amount in distribution.items()
+                if amount > 0
+            ]
+        else:
+            profile_rows = [
+                ("Фактическая добыча", "Нет добычи за рассчитанный ход"),
+            ]
+            structure_rows = []
+        return boxed_sections(
+            "ПРОМЫШЛЕННЫЙ УКЛАД",
+            (
+                ("ПРОФИЛЬ", profile_rows),
+                ("СТРУКТУРА ДОБЫЧИ", structure_rows),
+            ),
+        )
+
+    def render_industrial_readiness_report(self) -> str:
+        report = self.last_readiness
+        if report is None:
+            return boxed_sections(
+                "ПРОМЫШЛЕННАЯ ГОТОВНОСТЬ И НАПРЯЖЁННОСТЬ",
+                (("", [("Состояние", "Текущий ход ещё не рассчитывался")]),),
+            )
+        component_rows = [
+            ("Технологии", f"{report.technology:.1f}%", "20%"),
+            ("Кадры", f"{report.personnel:.1f}%", "20%"),
+            ("Инфраструктура", f"{report.infrastructure:.1f}%", "20%"),
+            ("Ресурсы", f"{report.resources:.1f}%", "15%"),
+            ("Институты", f"{report.institutions:.1f}%", "10%"),
+            ("Рынок", f"{report.market:.1f}%", "15%"),
+        ]
+        weakest = sorted(
+            (
+                ("технологии", report.technology),
+                ("кадры", report.personnel),
+                ("инфраструктура", report.infrastructure),
+                ("ресурсы", report.resources),
+                ("институты", report.institutions),
+                ("рынок", report.market),
+            ),
+            key=lambda item: item[1],
+        )[:2]
+        summary_rows = [
+            ("Промышленная готовность", f"{report.readiness:.1f}%"),
+            ("Промышленная напряжённость", f"{report.strain:.1f}%"),
+            (
+                "Множитель промышленного дохода",
+                f"×{report.industry_income_factor:.3f}",
+            ),
+            (
+                "Главные ограничения",
+                ", ".join(f"{name} {value:.1f}%" for name, value in weakest),
+            ),
+        ]
+        quality_rows = [
+            ("Высокое качество", f"{report.effective_high_quality:.1f}%"),
+            ("Среднее качество", f"{report.effective_mid_quality:.1f}%"),
+            ("Низкое качество", f"{report.effective_low_quality:.1f}%"),
+        ]
+        return "\n".join(
+            (
+                boxed_table(
+                    "ПРОМЫШЛЕННАЯ ГОТОВНОСТЬ И НАПРЯЖЁННОСТЬ",
+                    ("Компонент", "Значение", "Вес"),
+                    component_rows,
+                ),
+                boxed_sections(
+                    "ИТОГ И ВЛИЯНИЕ",
+                    (
+                        ("ИТОГ", summary_rows),
+                        ("ЭФФЕКТИВНОЕ КАЧЕСТВО ДЛЯ ТОРГОВЛИ", quality_rows),
+                    ),
+                ),
+            )
+        )
+
+    def _diagnostic_name(self, target: str) -> str:
+        try:
+            group = ExtractionGroup(target)
+        except ValueError:
+            resource = self.resource_inventory.resources.get(
+                ResourceType(target)
+            )
+            if resource is None:
+                return target
+            return f"{resource.definition.name} [{target}]"
+        return f"{GROUP_NAMES[group]} [{target}]"
+
+    @staticmethod
+    def _diagnostic_stage(diagnostic: ExtractionDiagnostic) -> str:
+        if not diagnostic.stage_outputs:
+            return "—"
+        stage = max(
+            diagnostic.stage_outputs,
+            key=diagnostic.stage_outputs.get,
+        )
+        return _STAGE_LABELS[stage]
+
+    @staticmethod
+    def _diagnostic_bottlenecks(
+        diagnostic: ExtractionDiagnostic,
+    ) -> str:
+        factors = [
+            (name, value)
+            for name, value in diagnostic.factors.items()
+            if name in _FACTOR_LABELS
+        ]
+        if not factors:
+            return "нет доступной мощности"
+        weakest = sorted(factors, key=lambda item: item[1])[:2]
+        return ", ".join(
+            f"{_FACTOR_LABELS[name]} {value * 100:.0f}%"
+            for name, value in weakest
+        )
+
+    def render_extraction_allocation_report(self) -> str:
+        if not self.last_extraction_diagnostics:
+            return boxed_sections(
+                "РАСПРЕДЕЛЕНИЕ ДОБЫВАЮЩЕЙ МОЩНОСТИ",
+                (("", [("Состояние", "Нет активной добычи за ход")]),),
+            )
+        total_capacity = sum(
+            item.allocated_capacity
+            for item in self.last_extraction_diagnostics
+        )
+        rows = []
+        for diagnostic in self.last_extraction_diagnostics:
+            share = (
+                diagnostic.allocated_capacity / total_capacity * 100
+                if total_capacity > 0
+                else 0.0
+            )
+            rows.append(
+                (
+                    self._diagnostic_name(diagnostic.target),
+                    self._diagnostic_stage(diagnostic),
+                    f"{diagnostic.priority} / {diagnostic.intensity:.0f}%",
+                    f"{share:.1f}% / {diagnostic.allocated_capacity:.1f}",
+                    f"{diagnostic.extracted:.1f}",
+                    self._diagnostic_bottlenecks(diagnostic),
+                )
+            )
+        return boxed_table(
+            "РАСПРЕДЕЛЕНИЕ ДОБЫВАЮЩЕЙ МОЩНОСТИ",
+            (
+                "Направление",
+                "Этап",
+                "Приор. / интенс.",
+                "Доля / мощность",
+                "Добыто",
+                "Главные ограничения",
+            ),
+            rows,
+        )
+
+    def _production_resource_flows(
+        self,
+    ) -> tuple[dict[ResourceType, float], dict[ResourceType, float]]:
+        inputs: dict[ResourceType, float] = {}
+        outputs: dict[ResourceType, float] = {}
+        for result in self.last_production:
+            for resource, amount in result.inputs_spent.items():
+                inputs[resource] = inputs.get(resource, 0.0) + amount
+            for mapping in (
+                result.outputs_produced,
+                result.byproducts_produced,
+            ):
+                for resource, amount in mapping.items():
+                    outputs[resource] = outputs.get(resource, 0.0) + amount
+        return inputs, outputs
+
+    @staticmethod
+    def _signed_resource_amount(value: float) -> str:
+        return f"{value:+.1f}" if abs(value) >= 0.05 else "0.0"
+
+    def render_material_balance(self) -> str:
+        production_inputs, production_outputs = (
+            self._production_resource_flows()
+        )
+        active = [
+            state
+            for state in self.resource_inventory.resources.values()
+            if state.enabled
+        ]
+        rows = []
+        for state in active:
+            resource = state.resource
+            before = self.last_stock_before.get(resource, state.stockpile)
+            extracted = self.last_extracted.get(resource, 0.0)
+            production_net = production_outputs.get(
+                resource, 0.0
+            ) - production_inputs.get(resource, 0.0)
+            consumed = self.last_resource_consumed.get(resource, 0.0)
+            delta = state.stockpile - before
+            storage_loss = max(
+                before
+                + extracted
+                + production_net
+                - consumed
+                - state.stockpile,
+                0.0,
+            )
+            rows.append(
+                (
+                    f"{state.definition.name} [{resource.value}]",
+                    _STAGE_LABELS[state.stage],
+                    f"{extracted:.1f}",
+                    self._signed_resource_amount(production_net),
+                    f"{consumed:.1f}",
+                    f"{storage_loss:.1f}",
+                    self._signed_resource_amount(delta),
+                    f"{self.resource_shortages.get(resource, 0.0):.1f}",
+                )
+            )
+        if not rows:
+            return boxed_sections(
+                "МАТЕРИАЛЬНЫЙ БАЛАНС",
+                (("", [("Состояние", "Нет зарегистрированных ресурсов")]),),
+            )
+        return boxed_table(
+            "МАТЕРИАЛЬНЫЙ БАЛАНС",
+            (
+                "Ресурс",
+                "Этап",
+                "Добыто",
+                "Перераб.",
+                "Потребл.",
+                "Хран.потери",
+                "Склад Δ",
+                "Дефицит",
+            ),
+            rows,
+        )
+
     def render_production_results(self) -> str:
-        rows = ["ПРОИЗВОДСТВО ЗА ХОД"]
         if not self.last_production:
             if not self.production_rules:
-                rows.append("Правила производства не загружены")
+                state = "Правила производства не загружены"
             elif not any(rule.enabled for rule in self.production_rules):
-                rows.append("Нет активных правил производства")
+                state = "Нет активных правил производства"
             else:
-                rows.append("Текущий ход ещё не рассчитывался")
-            return "\n".join(rows)
+                state = "Текущий ход ещё не рассчитывался"
+            return boxed_sections(
+                "ПРОИЗВОДСТВО ЗА ХОД: ЦЕПОЧКИ",
+                (("", [("Состояние", state)]),),
+            )
+        sections = []
         for result in self.last_production:
             remaining_months = (
                 "∞"
                 if result.turns_remaining is None
                 else str(round(result.turns_remaining * REFERENCE_TURN_MONTHS))
             )
-            rows.append(
-                f"{result.name} [{result.rule_id}]: "
-                f"план {result.requested_batches:.1f}, "
-                f"выполнено {result.completed_batches:.1f} партий, "
-                f"осталось месяцев {remaining_months}"
-            )
-            rows.append(
-                "  Взято: "
-                f"{self._format_resource_amounts(result.inputs_spent)}"
-            )
-            rows.append(
-                "  Выпущено: "
-                f"{self._format_resource_amounts(result.outputs_produced)}"
-            )
+            result_rows = [
+                (
+                    "План / выполнено",
+                    f"{result.requested_batches:.1f} / "
+                    f"{result.completed_batches:.1f} партий",
+                ),
+                ("Осталось", f"{remaining_months} мес."),
+                (
+                    "Входы",
+                    "Взято: "
+                    f"{self._format_resource_amounts(result.inputs_spent)}",
+                ),
+                (
+                    "Выходы",
+                    "Выпущено: "
+                    f"{self._format_resource_amounts(result.outputs_produced)}",
+                ),
+            ]
             if result.byproducts_produced:
-                rows.append(
-                    "  Побочно: "
-                    f"{self._format_resource_amounts(result.byproducts_produced)}"
+                result_rows.append(
+                    (
+                        "Побочные продукты",
+                        "Побочно: "
+                        f"{self._format_resource_amounts(result.byproducts_produced)}",
+                    )
                 )
-        return "\n".join(rows)
+            if any(result.process_losses.values()):
+                result_rows.append(
+                    (
+                        "Потери выхода",
+                        self._format_resource_amounts(result.process_losses),
+                    )
+                )
+            sections.append((f"{result.name} [{result.rule_id}]", result_rows))
+        return boxed_sections(
+            "ПРОИЗВОДСТВО ЗА ХОД: ЦЕПОЧКИ",
+            sections,
+        )
+
+    def render_turn_report(
+        self,
+        *,
+        include_pending_production: bool = True,
+    ) -> str:
+        reports = []
+        if self.last_turn_calculated:
+            reports.extend(
+                (
+                    self.render_industrialization_profile(),
+                    self.render_industrial_readiness_report(),
+                    self.render_extraction_allocation_report(),
+                    self.render_material_balance(),
+                )
+            )
+        if self.last_turn_calculated or include_pending_production:
+            reports.append(self.render_production_results())
+        reports.append(self.render_effect_results())
+        return "\n\n".join(reports)
 
     def render_effect_results(self) -> str:
         """Expose configured effects and actual deltas for every target."""
-        rows = ["ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ"]
         if not self.effects:
-            rows.append("Эффекты не настроены")
-            return "\n".join(rows)
+            return boxed_sections(
+                "ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ",
+                (("", [("Состояние", "Эффекты не настроены")]),),
+            )
 
         results = {
             (result.effect_id, result.target): result
             for result in self.last_effects
         }
-        target_width = max(
-            len(target) for effect in self.effects for target in effect.targets
-        )
+        rows = []
         for effect in self.effects:
-            rows.append(f"{effect.id}:")
             for target in effect.targets:
-                label = f"  {target:<{target_width}} : "
                 result = results.get((effect.id, target))
                 if result is None:
-                    rows.append(f"{label}ожидает расчёта хода")
-                    continue
-                rows.append(
-                    f"{label}{result.target_before:.1f} -> "
-                    f"{result.target_after:.1f} "
-                    f"({result.adjustment:+.1f})"
-                )
-        return "\n".join(rows)
+                    value = "ожидает расчёта хода"
+                else:
+                    value = (
+                        f"{result.target_before:.1f} -> "
+                        f"{result.target_after:.1f} "
+                        f"({result.adjustment:+.1f})"
+                    )
+                rows.append((f"{effect.id}:", target, value))
+        return boxed_table(
+            "ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ",
+            ("Эффект", "Целевая стата", "Результат"),
+            rows,
+        )
 
     def _format_resource_amounts(
         self,

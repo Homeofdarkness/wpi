@@ -40,13 +40,18 @@ def execute_rule(
     inputs_spent: dict[ResourceType, float] = {}
     outputs_produced: dict[ResourceType, float] = {}
     byproducts_produced: dict[ResourceType, float] = {}
+    nominal_outputs: dict[ResourceType, float] = {}
+    process_losses: dict[ResourceType, float] = {}
     for resource, per_batch in rule.inputs.items():
         spent = inventory.spend(resource, per_batch * completed)
         inputs_spent[resource] = spent.actual
     nominal_output = 0.0
     for resource, per_batch in rule.outputs.items():
-        amount = per_batch * completed * yield_factor
-        nominal_output += per_batch * completed
+        nominal_amount = per_batch * completed
+        amount = nominal_amount * yield_factor
+        nominal_output += nominal_amount
+        nominal_outputs[resource] = nominal_amount
+        process_losses[resource] = nominal_amount - amount
         outputs_produced[resource] = inventory.collect(
             resource,
             amount,
@@ -69,4 +74,6 @@ def execute_rule(
         rule_id=rule.rule_id or "",
         name=rule.name or rule.rule_id or "",
         turns_remaining=rule.turns_remaining,
+        nominal_outputs=nominal_outputs,
+        process_losses=process_losses,
     )

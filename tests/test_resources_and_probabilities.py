@@ -10,6 +10,9 @@ from functions.probability_models import (
 )
 from functions.resource_models import (
     GROUP_PROFILES,
+    INDUSTRIAL_STAGE_PROFILES,
+    extraction_allocation_weight,
+    extraction_output,
     extraction_priority_weight,
     national_extraction_capacity,
     specialist_capacity,
@@ -23,6 +26,7 @@ from stats.industry_components import (
     RESOURCE_CATALOG,
     ExtractionGroup,
     ExtractionOperation,
+    IndustrialStage,
     ResourceRegistration,
     ResourceState,
     ResourceType,
@@ -82,6 +86,12 @@ def test_first_extraction_priority_is_the_strongest_rank():
     assert extraction_priority_weight(3, 3) == pytest.approx(1)
 
 
+def test_extraction_allocation_weight_combines_priority_and_intensity():
+    assert extraction_allocation_weight(1, 2, 50) == pytest.approx(1)
+    assert extraction_allocation_weight(2, 2, 100) == pytest.approx(1)
+    assert extraction_allocation_weight(1, 2, 0) == 0
+
+
 def test_full_extraction_target_does_not_consume_other_priorities():
     bundle = make_basic_bundle()
     iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
@@ -105,25 +115,79 @@ def test_full_extraction_target_does_not_consume_other_priorities():
     }
 
 
-def test_extraction_intensity_controls_available_capacity_linearly():
+def test_extraction_intensity_redistributes_all_national_capacity():
     low = make_basic_bundle()
     high = make_basic_bundle()
     for bundle, intensity in ((low, 40), (high, 100)):
         iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
+        oil = bundle.industry.resource_inventory.resources[ResourceType.OIL]
         iron.enabled = True
         iron.storage_capacity = 10_000
+        oil.enabled = True
+        oil.storage_capacity = 10_000
         bundle.industry.extraction_operations = [
             ExtractionOperation(
                 target="iron",
                 intensity=intensity,
                 priority=1,
-            )
+            ),
+            ExtractionOperation(target="oil", intensity=100, priority=1),
         ]
 
-    low_capacity = make_engine(low)._extraction_capacities()["iron"]
-    high_capacity = make_engine(high)._extraction_capacities()["iron"]
+    low_capacities = make_engine(low)._extraction_capacities()
+    high_capacities = make_engine(high)._extraction_capacities()
+    national_capacity = national_extraction_capacity(low.economy.gov_wastes[3])
 
-    assert high_capacity == pytest.approx(low_capacity / 0.4)
+    assert sum(low_capacities.values()) == pytest.approx(national_capacity)
+    assert sum(high_capacities.values()) == pytest.approx(national_capacity)
+    assert low_capacities["iron"] == pytest.approx(
+        national_capacity * 0.4 / 1.4
+    )
+    assert high_capacities["iron"] == pytest.approx(national_capacity / 2)
+
+
+def test_extraction_report_preserves_turn_capacity_and_explains_limits():
+    bundle = make_basic_bundle()
+    for resource in (ResourceType.IRON, ResourceType.WOOD):
+        state = bundle.industry.resource_inventory.resources[resource]
+        state.enabled = True
+        state.storage_capacity = 1_000_000
+    bundle.industry.extraction_operations = [
+        ExtractionOperation(target="iron", intensity=50, priority=1),
+        ExtractionOperation(target="wood", intensity=100, priority=1),
+    ]
+
+    make_engine(bundle, seed=125).run()
+
+    diagnostics = bundle.industry.last_extraction_diagnostics
+    expected_capacity = (
+        national_extraction_capacity(bundle.economy.gov_wastes[3]) * TURN_YEARS
+    )
+    report = bundle.industry.render_extraction_allocation_report()
+    assert sum(item.allocated_capacity for item in diagnostics) == (
+        pytest.approx(expected_capacity)
+    )
+    assert "╫" in report
+    assert "РАСПРЕДЕЛЕНИЕ ДОБЫВАЮЩЕЙ МОЩНОСТИ" in report
+    assert "Доля / мощность" in report
+    assert "Главные ограничения" in report
+    assert "Железо [iron]" in report
+
+
+def test_single_active_extraction_uses_full_capacity_at_any_intensity():
+    bundle = make_basic_bundle()
+    iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
+    iron.enabled = True
+    iron.storage_capacity = 10_000
+    bundle.industry.extraction_operations = [
+        ExtractionOperation(target="iron", intensity=25, priority=3)
+    ]
+
+    capacities = make_engine(bundle)._extraction_capacities()
+
+    assert capacities["iron"] == pytest.approx(
+        national_extraction_capacity(bundle.economy.gov_wastes[3])
+    )
 
 
 def test_atterium_extraction_uses_resource_spending_not_republic_spending():
@@ -164,6 +228,86 @@ def test_resource_catalog_has_every_approved_resource():
     assert (
         GROUP_PROFILES[ExtractionGroup.PLANTATIONS].labor_weight
         > GROUP_PROFILES[ExtractionGroup.HYDROCARBONS].labor_weight
+    )
+    assert set(INDUSTRIAL_STAGE_PROFILES) == set(IndustrialStage)
+
+
+def stage_output(
+    stage: IndustrialStage,
+    *,
+    equipment_availability: float = 100,
+) -> float:
+    return extraction_output(
+        extraction_capacity=100_000,
+        accessibility=100,
+        quality=100,
+        technology=100,
+        effective_labor=100_000,
+        equipment_availability=equipment_availability,
+        process_yield=100,
+        years=1,
+        profile=GROUP_PROFILES[ExtractionGroup.FERROUS],
+        stage=stage,
+    )
+
+
+def test_industrial_stages_change_abstract_extraction_units() -> None:
+    outputs = [stage_output(stage) for stage in IndustrialStage]
+
+    assert outputs == sorted(outputs)
+    assert outputs[2] > outputs[0] * 1.8
+    assert outputs[-1] > outputs[2] * 1.3
+
+
+def test_advanced_stage_depends_more_on_equipment_availability() -> None:
+    manual_ratio = stage_output(
+        IndustrialStage.MANUAL,
+        equipment_availability=50,
+    ) / stage_output(IndustrialStage.MANUAL)
+    mass_ratio = stage_output(
+        IndustrialStage.MASS_PRODUCTION,
+        equipment_availability=50,
+    ) / stage_output(IndustrialStage.MASS_PRODUCTION)
+
+    assert manual_ratio == pytest.approx(0.925)
+    assert mass_ratio == pytest.approx(0.5)
+
+
+def test_resource_stage_changes_extraction_in_a_real_turn() -> None:
+    manual = make_basic_bundle(budget=1_000_000)
+    mass = make_basic_bundle(budget=1_000_000)
+    for bundle, stage in (
+        (manual, IndustrialStage.MANUAL),
+        (mass, IndustrialStage.MASS_PRODUCTION),
+    ):
+        iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
+        iron.enabled = True
+        iron.stage = stage
+        iron.storage_capacity = 1_000_000
+        bundle.industry.workforce.auto_size = False
+        bundle.industry.workforce.ordinary_workers = 50_000
+        bundle.industry.workforce.specialist_workers = 1_000
+        bundle.industry.extraction_operations = [
+            ExtractionOperation(target="iron", intensity=100, priority=1)
+        ]
+
+    make_engine(manual, seed=141).run()
+    make_engine(mass, seed=141).run()
+
+    manual_output = manual.industry.last_extracted[ResourceType.IRON]
+    mass_output = mass.industry.last_extracted[ResourceType.IRON]
+    assert mass_output > manual_output * 1.5
+    assert manual.industry.last_readiness is not None
+    assert mass.industry.last_readiness is not None
+    assert manual.industry.last_readiness.readiness == pytest.approx(
+        mass.industry.last_readiness.readiness
+    )
+    assert manual.industry.last_readiness.strain == pytest.approx(
+        mass.industry.last_readiness.strain
+    )
+    assert "Ручной" in manual.industry.render_industrialization_profile()
+    assert "Массовое производство" in (
+        mass.industry.render_industrialization_profile()
     )
 
 
@@ -371,6 +515,30 @@ def test_production_recipe_consumes_inputs_and_creates_output_and_slag():
     assert inventory[ResourceType.IRON].stockpile < 20
     assert inventory[ResourceType.BASIC_BUILDING_MATERIALS].stockpile > 0
     assert inventory[ResourceType.SLAG].stockpile > 0
+    assert any(result.process_losses.values())
+    assert "Потери выхода" in bundle.industry.render_production_results()
+
+
+def test_material_balance_reports_monthly_consumption_and_stock_change():
+    bundle = make_basic_bundle()
+    iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
+    iron.enabled = True
+    iron.stockpile = 20
+    iron.storage_capacity = 100
+    bundle.industry.resource_demands = {ResourceType.IRON: 2}
+
+    make_engine(bundle, seed=504).run()
+
+    report = bundle.industry.render_material_balance()
+    assert bundle.industry.last_stock_before[ResourceType.IRON] == 20
+    assert bundle.industry.last_resource_consumed[ResourceType.IRON] == (
+        pytest.approx(2 * TURN_MONTHS)
+    )
+    assert "╫" in report
+    assert "МАТЕРИАЛЬНЫЙ БАЛАНС" in report
+    assert "Железо [iron]" in report
+    assert "Перераб." in report
+    assert "Склад Δ" in report
 
 
 def test_resource_shortage_reduces_legacy_civil_security():

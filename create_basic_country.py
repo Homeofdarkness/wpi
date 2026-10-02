@@ -177,11 +177,9 @@ def render_country(
     result_parts.append(
         "Стата -\n" + "\n".join(str(section) for section in sections)
     )
-    reports = []
-    if country.industry.last_production:
-        reports.append(country.industry.render_production_results())
-    reports.append(country.industry.render_effect_results())
-    reports_text = "\n\n".join(reports)
+    reports_text = country.industry.render_turn_report(
+        include_pending_production=False
+    )
     result_parts.append(f"Отдельный отчёт промышленности -\n{reports_text}")
     return "\n\n".join(result_parts) + "\n"
 

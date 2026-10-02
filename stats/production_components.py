@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 import pydantic
@@ -174,3 +174,5 @@ class ProductionResult:
     rule_id: str = ""
     name: str = ""
     turns_remaining: float | None = None
+    nominal_outputs: dict[ResourceType, float] = field(default_factory=dict)
+    process_losses: dict[ResourceType, float] = field(default_factory=dict)

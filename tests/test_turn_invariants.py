@@ -34,17 +34,48 @@ def test_final_budget_is_stock_plus_turn_flow_not_multiplied_stock():
     )
 
 
-def test_stability_is_persisted_in_next_state():
+def test_stability_debuff_is_runtime_only():
     bundle = make_basic_bundle()
     stability_before = bundle.economy.stability
     report = engine_for(bundle).run()
 
     assert report.stability_before == stability_before
     assert report.stability_effect_adjustment == 0
-    assert bundle.economy.stability == report.stability_after
+    assert bundle.economy.stability == stability_before
     assert report.stability_after == round(
         stability_before + report.stability_policy_adjustment
     )
+
+
+def test_reused_engine_does_not_compound_runtime_stability_debuff():
+    bundle = make_basic_bundle()
+    stability_before = bundle.economy.stability
+    engine = engine_for(bundle)
+
+    first = engine.run()
+    second = engine.run()
+
+    assert bundle.economy.stability == stability_before
+    assert first.stability_before == stability_before
+    assert second.stability_before == stability_before
+    assert first.stability_after <= 100
+    assert second.stability_after <= 100
+
+
+def test_actual_stability_policy_debuff_never_changes_country_stat():
+    bundle = make_basic_bundle()
+    bundle.economy.stability = 70
+    bundle.inner_politics.state_apparatus_size = 0
+    engine = engine_for(bundle)
+
+    first = engine.run()
+    second = engine.run()
+
+    assert first.stability_policy_adjustment < 0
+    assert first.stability_after < 70
+    assert second.stability_policy_adjustment < 0
+    assert second.stability_after == first.stability_after
+    assert bundle.economy.stability == 70
 
 
 def test_population_growth_is_applied_and_remains_integer():

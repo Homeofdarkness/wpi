@@ -53,7 +53,8 @@ def test_budget_report_explains_the_turn_with_one_decimal() -> None:
     assert "Изменение казны до кредита" in output
     assert "Стабильность до хода" in output
     assert "Поправка государственного аппарата" in output
-    assert "Стабильность после хода" in output
+    assert "Расчётная стабильность хода" in output
+    assert "Стабильность в итоговой стате" in output
     assert f"{report.total_wastes:.1f} ед.вал" in output
 
 

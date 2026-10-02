@@ -243,9 +243,10 @@ def test_effect_report_explains_absence_of_configured_effects():
     bundle = make_basic_bundle()
     bundle.industry.effects = []
 
-    assert bundle.industry.render_effect_results() == (
-        "ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ\nЭффекты не настроены"
-    )
+    report = bundle.industry.render_effect_results()
+    assert "╫" in report
+    assert "ЭФФЕКТЫ ПРОМЫШЛЕННОСТИ" in report
+    assert "Эффекты не настроены" in report
 
 
 def test_effect_report_shows_real_delta_to_one_decimal_place():
@@ -328,6 +329,7 @@ def test_stability_effect_and_policy_use_one_turn_start_snapshot() -> None:
         + report.stability_effect_adjustment
         + report.stability_policy_adjustment
     )
+    assert bundle.economy.stability == 80
 
 
 def test_qualified_targets_distinguish_same_name_in_different_sections():

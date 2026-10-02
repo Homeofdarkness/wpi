@@ -29,11 +29,11 @@ SCENARIOS = (
         make_basic_bundle,
         BasicSkipMoveRules,
         {
-            "money_income": -97.91155376732428,
+            "money_income": -99.28141742507427,
             "tax_income": 138.8322273829015,
-            "trade_income": 14.645157,
+            "trade_income": 13.31616,
             "total_wastes": 273.13635772,
-            "budget_final": 912.0884462326758,
+            "budget_final": 910.7185825749257,
         },
     ),
     (
@@ -42,11 +42,11 @@ SCENARIOS = (
         make_atterium_bundle,
         AtteriumSkipMoveRules,
         {
-            "money_income": -88.62267641695314,
+            "money_income": -90.92555910115314,
             "tax_income": 137.12510426845196,
-            "trade_income": 24.61787832,
+            "trade_income": 22.38369672,
             "total_wastes": 272.13635772,
-            "budget_final": 921.3773235830469,
+            "budget_final": 919.0744408988469,
         },
     ),
     (
@@ -55,11 +55,11 @@ SCENARIOS = (
         make_isf_bundle,
         IsfSkipMoveRules,
         {
-            "money_income": -72.19634894238607,
+            "money_income": -73.51328473176858,
             "tax_income": 169.9400063796194,
-            "trade_income": 14.514498,
+            "trade_income": 13.197335,
             "total_wastes": 272.13635772,
-            "budget_final": 937.8036510576139,
+            "budget_final": 936.4867152682314,
         },
     ),
 )

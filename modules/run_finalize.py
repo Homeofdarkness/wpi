@@ -83,7 +83,11 @@ def render_budget_report(report: SkipMoveReport) -> str:
             "Поправка эффектов",
             f"{report.stability_effect_adjustment:+.1f} п.п.",
         ),
-        ("Стабильность после хода", f"{report.stability_after:.1f}%"),
+        ("Расчётная стабильность хода", f"{report.stability_after:.1f}%"),
+        (
+            "Стабильность в итоговой стате",
+            f"{report.stability_before:.1f}%",
+        ),
     ]
 
     def money_rows(values: list[tuple[str, float]]) -> list[tuple[str, str]]:
@@ -191,15 +195,11 @@ def print_final_state(state: WorldState) -> None:
     # Rules and their remaining duration are deliberately kept outside the
     # public stat block.  They still have to be returned after every turn so
     # the next moves_skipper run does not lose or reset them.
-    production_report = state.industry.render_production_results()
-    effect_report = state.industry.render_effect_results()
+    industry_report = state.industry.render_turn_report()
     next_turn_configuration = state.industry.render_configuration()
     print("\nОтдельный отчёт промышленности -")
-    print(production_report)
-    print()
-    print(effect_report)
+    print(industry_report)
     print("\nTOML промышленности для следующего хода -")
     print(next_turn_configuration)
-    logger.info(production_report)
-    logger.info(effect_report)
+    logger.info(industry_report)
     logger.info(next_turn_configuration)

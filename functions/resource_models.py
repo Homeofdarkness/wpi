@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from stats.industry_components import ExtractionGroup
+from stats.industry_components import ExtractionGroup, IndustrialStage
 
 
 EXTRACTION_UNITS_PER_SPENDING = 300.0
@@ -16,6 +16,24 @@ class ExtractionGroupProfile:
     labor_weight: float
     labor_scale: float
     efficiency: float = 1.0
+
+
+@dataclass(frozen=True)
+class IndustrialStageProfile:
+    """Gameplay calibration for abstract units, not physical tonnes."""
+
+    extraction_multiplier: float
+    labor_dependency: float
+    equipment_dependency: float
+
+
+INDUSTRIAL_STAGE_PROFILES: dict[IndustrialStage, IndustrialStageProfile] = {
+    IndustrialStage.MANUAL: IndustrialStageProfile(0.55, 1.35, 0.15),
+    IndustrialStage.STEAM: IndustrialStageProfile(0.78, 1.15, 0.35),
+    IndustrialStage.MACHINE: IndustrialStageProfile(1.00, 1.00, 0.60),
+    IndustrialStage.ELECTRIFIED: IndustrialStageProfile(1.18, 0.82, 0.82),
+    IndustrialStage.MASS_PRODUCTION: IndustrialStageProfile(1.35, 0.68, 1.00),
+}
 
 
 GROUP_PROFILES: dict[ExtractionGroup, ExtractionGroupProfile] = {
@@ -68,6 +86,24 @@ def extraction_priority_weight(
     return float(lowest_rank - rank + 1)
 
 
+def extraction_allocation_weight(
+    priority: int,
+    lowest_priority: int,
+    intensity: float,
+) -> float:
+    """Combine a priority rank and intensity into one allocation weight.
+
+    Intensity describes how much of the shared extraction effort should be
+    directed to an operation.  Normalising the combined weights prevents the
+    unused part of a low-intensity operation from silently disappearing.
+    """
+    intensity_factor = min(max(float(intensity) / 100, 0.0), 1.0)
+    return (
+        extraction_priority_weight(priority, lowest_priority)
+        * intensity_factor
+    )
+
+
 def effective_workers(
     ordinary_workers: int,
     specialist_workers: int,
@@ -90,6 +126,44 @@ def effective_workers(
     return ordinary + specialists + forced
 
 
+def extraction_factor_breakdown(
+    *,
+    accessibility: float,
+    quality: float,
+    technology: float,
+    effective_labor: float,
+    equipment_availability: float,
+    process_yield: float,
+    profile: ExtractionGroupProfile | None = None,
+    stage: IndustrialStage = IndustrialStage.MACHINE,
+) -> dict[str, float]:
+    """Return every multiplier used by the extraction formula."""
+    group_profile = profile or ExtractionGroupProfile(0.5, 10_000)
+    stage_profile = INDUSTRIAL_STAGE_PROFILES[stage]
+    labor_ratio = 1 - math.exp(
+        -max(effective_labor, 0.0) / group_profile.labor_scale
+    )
+    labor_factor = labor_ratio ** (
+        group_profile.labor_weight * stage_profile.labor_dependency
+    )
+    technology_ratio = min(max(technology / 100, 0.0), 1.0)
+    technology_factor = 0.4 + 0.6 * technology_ratio
+    equipment_ratio = min(max(equipment_availability / 100, 0.0), 1.0)
+    equipment_factor = 1 - stage_profile.equipment_dependency * (
+        1 - equipment_ratio
+    )
+    return {
+        "labor": labor_factor,
+        "group_efficiency": group_profile.efficiency,
+        "stage": stage_profile.extraction_multiplier,
+        "accessibility": min(max(accessibility / 100, 0.0), 1.0),
+        "quality": min(max(quality / 100, 0.0), 1.0),
+        "technology": technology_factor,
+        "equipment": equipment_factor,
+        "process_yield": min(max(process_yield / 100, 0.0), 1.0),
+    }
+
+
 def extraction_output(
     *,
     extraction_capacity: float,
@@ -101,22 +175,19 @@ def extraction_output(
     process_yield: float,
     years: float,
     profile: ExtractionGroupProfile | None = None,
+    stage: IndustrialStage = IndustrialStage.MACHINE,
 ) -> float:
     if extraction_capacity <= 0 or years <= 0:
         return 0.0
-    group_profile = profile or ExtractionGroupProfile(0.5, 10_000)
-    labor_factor = 1 - math.exp(
-        -max(effective_labor, 0.0) / group_profile.labor_scale
-    )
-    production_factor = (
-        labor_factor**group_profile.labor_weight * group_profile.efficiency
-    )
-    modifiers = (
-        min(max(accessibility / 100, 0.0), 1.0)
-        * min(max(quality / 100, 0.0), 1.0)
-        * min(max(technology / 100, 0.0), 2.0)
-        * min(max(equipment_availability / 100, 0.0), 1.0)
-        * min(max(process_yield / 100, 0.0), 1.0)
+    factors = extraction_factor_breakdown(
+        accessibility=accessibility,
+        quality=quality,
+        technology=technology,
+        effective_labor=effective_labor,
+        equipment_availability=equipment_availability,
+        process_yield=process_yield,
+        profile=profile,
+        stage=stage,
     )
     capacity_for_period = extraction_capacity * years
-    return capacity_for_period * production_factor * modifiers
+    return capacity_for_period * math.prod(factors.values())

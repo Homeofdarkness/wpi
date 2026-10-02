@@ -58,6 +58,12 @@ def test_file_creator_reads_answers_and_human_industry_configuration():
     assert 'targets = ["logistic", "trade_efficiency"]' in source
     assert "population_epidemic_chance" in source
     assert len(country.industry.effects) == 4
+    assert (
+        country.industry.resource_inventory.resources[
+            ResourceType.WOOD
+        ].stage.value
+        == "machine"
+    )
 
 
 def test_country_creator_reads_marker_free_toml(monkeypatch):
@@ -173,7 +179,7 @@ def test_creator_cli_can_run_a_real_turn_and_show_effect_results(
     assert "infrastructure_expenses" in country_text
     infrastructure = 932.8 * TURN_SCALE
     match = re.search(
-        r"infrastructure_expenses\s+: "
+        r"infrastructure_expenses\s+╫\s+"
         r"(-?\d+\.\d) -> (-?\d+\.\d) \(([+-]\d+\.\d)\)",
         country_text,
     )

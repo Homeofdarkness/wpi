@@ -3,6 +3,7 @@ schema_version = 3
 [resources.wood]
 name = "Дерево"
 group = "forestry"
+stage = "machine"
 availability = 90.0
 quality = 85.0
 consumption_per_month = 200.0
@@ -11,6 +12,7 @@ storage_capacity = 10000.0
 [resources.fresh_water]
 name = "Пресная вода"
 group = "fresh_water"
+stage = "machine"
 availability = 95.0
 quality = 90.0
 consumption_per_month = 800.0
@@ -19,6 +21,7 @@ storage_capacity = 30000.0
 [resources.copper]
 name = "Медь"
 group = "nonferrous"
+stage = "machine"
 availability = 75.0
 quality = 80.0
 consumption_per_month = 0.0
@@ -27,6 +30,7 @@ storage_capacity = 6000.0
 [resources.aluminum]
 name = "Алюминий"
 group = "strategic_metals"
+stage = "machine"
 availability = 78.0
 quality = 78.0
 consumption_per_month = 0.0
@@ -35,6 +39,7 @@ storage_capacity = 8000.0
 [resources.iron]
 name = "Железо"
 group = "ferrous"
+stage = "machine"
 availability = 82.0
 quality = 78.0
 consumption_per_month = 300.0
@@ -43,6 +48,7 @@ storage_capacity = 25000.0
 [resources.sulfur]
 name = "Сера"
 group = "chemical"
+stage = "machine"
 availability = 80.0
 quality = 80.0
 consumption_per_month = 0.0
@@ -51,6 +57,7 @@ storage_capacity = 7000.0
 [resources.silicon]
 name = "Кремний"
 group = "chemical"
+stage = "machine"
 availability = 85.0
 quality = 82.0
 consumption_per_month = 0.0
@@ -59,6 +66,7 @@ storage_capacity = 10000.0
 [resources.basic_building_materials]
 name = "Базовые стройматериалы"
 group = "construction"
+stage = "machine"
 availability = 100.0
 quality = 100.0
 consumption_per_month = 250.0
@@ -67,6 +75,7 @@ storage_capacity = 10000.0
 [resources.expensive_building_materials]
 name = "Дорогие стройматериалы"
 group = "construction"
+stage = "machine"
 availability = 100.0
 quality = 100.0
 consumption_per_month = 50.0
@@ -75,6 +84,7 @@ storage_capacity = 4000.0
 [resources.coal]
 name = "Уголь"
 group = "solid_fuel"
+stage = "machine"
 availability = 80.0
 quality = 75.0
 consumption_per_month = 250.0
@@ -83,6 +93,7 @@ storage_capacity = 16000.0
 [resources.oil]
 name = "Нефть"
 group = "hydrocarbons"
+stage = "machine"
 availability = 75.0
 quality = 85.0
 consumption_per_month = 400.0
@@ -91,6 +102,7 @@ storage_capacity = 20000.0
 [resources.gas]
 name = "Газ"
 group = "hydrocarbons"
+stage = "machine"
 availability = 80.0
 quality = 88.0
 consumption_per_month = 400.0
@@ -99,6 +111,7 @@ storage_capacity = 25000.0
 [resources.slag]
 name = "Шлак"
 group = "recycling"
+stage = "machine"
 availability = 100.0
 quality = 100.0
 consumption_per_month = 0.0

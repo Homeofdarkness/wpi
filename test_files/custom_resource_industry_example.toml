@@ -3,6 +3,7 @@ schema_version = 3
 [resources.basic_building_materials]
 name = "Базовые стройматериалы"
 group = "construction"
+stage = "machine"
 availability = 100.0
 quality = 100.0
 consumption_per_month = 10.0
@@ -11,6 +12,7 @@ storage_capacity = 1000.0
 [resources.silicon]
 name = "Кремний"
 group = "chemical"
+stage = "machine"
 availability = 80.0
 quality = 75.0
 consumption_per_month = 0.0
@@ -19,6 +21,7 @@ storage_capacity = 500.0
 [resources.reinforced_glass]
 name = "Армированное стекло"
 group = "construction"
+stage = "machine"
 availability = 72.0
 quality = 81.0
 consumption_per_month = 20.0
@@ -27,6 +30,7 @@ storage_capacity = 300.0
 [resources.slag]
 name = "Шлак"
 group = "recycling"
+stage = "machine"
 availability = 100.0
 quality = 100.0
 consumption_per_month = 0.0

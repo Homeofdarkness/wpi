@@ -90,6 +90,16 @@ class ExtractionGroup(StrEnum):
     UNIQUE = "unique"
 
 
+class IndustrialStage(StrEnum):
+    """Technological stage used by one resource extraction chain."""
+
+    MANUAL = "manual"
+    STEAM = "steam"
+    MACHINE = "machine"
+    ELECTRIFIED = "electrified"
+    MASS_PRODUCTION = "mass_production"
+
+
 @dataclass(frozen=True)
 class ResourceDefinition:
     name: str
@@ -213,6 +223,7 @@ class ResourceState(pydantic.BaseModel):
     resource: ResourceType
     name: str | None = pydantic.Field(None, min_length=1)
     group: ExtractionGroup | None = None
+    stage: IndustrialStage = IndustrialStage.MACHINE
     enabled: bool = False
     stockpile: float = pydantic.Field(0.0, ge=0)
     storage_capacity: float = pydantic.Field(0.0, ge=0)
@@ -308,6 +319,7 @@ class ResourceInventory(pydantic.BaseModel):
         storage_capacity: float = 0.0,
         accessibility: float = 100.0,
         quality: float = 100.0,
+        stage: IndustrialStage = IndustrialStage.MACHINE,
     ) -> ResourceState:
         state = self.resources.get(resource)
         if state is None:
@@ -318,6 +330,7 @@ class ResourceInventory(pydantic.BaseModel):
         state.storage_capacity = storage_capacity
         state.accessibility = accessibility
         state.quality = quality
+        state.stage = stage
         return state
 
     def spend(
@@ -368,6 +381,37 @@ class ExtractionOperation(pydantic.BaseModel):
         return self.target
 
 
+class ExtractionDiagnostic(pydantic.BaseModel):
+    """Auditable result of allocating extraction power for one turn."""
+
+    target: str
+    priority: int
+    intensity: float
+    allocated_capacity: float = pydantic.Field(0.0, ge=0)
+    extracted: float = pydantic.Field(0.0, ge=0)
+    factors: dict[str, float] = pydantic.Field(default_factory=dict)
+    stage_outputs: dict[IndustrialStage, float] = pydantic.Field(
+        default_factory=dict
+    )
+
+
+class IndustrialReadinessReport(pydantic.BaseModel):
+    """Derived cross-system industrial readiness for the latest turn."""
+
+    technology: float = pydantic.Field(..., ge=0, le=100)
+    personnel: float = pydantic.Field(..., ge=0, le=100)
+    infrastructure: float = pydantic.Field(..., ge=0, le=100)
+    resources: float = pydantic.Field(..., ge=0, le=100)
+    institutions: float = pydantic.Field(..., ge=0, le=100)
+    market: float = pydantic.Field(..., ge=0, le=100)
+    readiness: float = pydantic.Field(..., ge=0, le=100)
+    strain: float = pydantic.Field(..., ge=0, le=100)
+    industry_income_factor: float = pydantic.Field(..., ge=0, le=1)
+    effective_high_quality: float = pydantic.Field(..., ge=0, le=100)
+    effective_mid_quality: float = pydantic.Field(..., ge=0, le=100)
+    effective_low_quality: float = pydantic.Field(..., ge=0, le=100)
+
+
 class ResourceRegistration(pydantic.BaseModel):
     """All country-specific data needed to activate one resource."""
 
@@ -379,6 +423,7 @@ class ResourceRegistration(pydantic.BaseModel):
     resource: ResourceType
     name: str | None = pydantic.Field(None, min_length=1)
     group: ExtractionGroup | None = None
+    stage: IndustrialStage = IndustrialStage.MACHINE
     stockpile: float = pydantic.Field(0.0, ge=0)
     storage_capacity: float = pydantic.Field(0.0, ge=0)
     accessibility: float = pydantic.Field(100.0, ge=0, le=100)

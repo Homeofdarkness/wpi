@@ -158,6 +158,37 @@ def allegorization_economy_factor(percent: float) -> float:
     return 1 + (percent - 20) / 500
 
 
+def effective_quality_shares(
+    high_quality_percent: float,
+    mid_quality_percent: float,
+    low_quality_percent: float,
+    industrial_strain: float,
+) -> tuple[float, float, float]:
+    """Return temporary trade quality shares without mutating country stats.
+
+    Strain moves up to 80% of high-quality goods into the middle tier and up
+    to 50% of middle-quality goods into the low tier.  The total share is
+    preserved, so this only changes the price mix used by trade income.
+    """
+    high = max(float(high_quality_percent), 0.0)
+    middle = max(float(mid_quality_percent), 0.0)
+    low = max(float(low_quality_percent), 0.0)
+    total = high + middle + low
+    if total <= 0:
+        return 0.0, 0.0, 0.0
+    high = high / total * 100.0
+    middle = middle / total * 100.0
+    low = low / total * 100.0
+    pressure = _clip(float(industrial_strain) / 100.0, 0.0, 1.0)
+    high_to_middle = high * 0.80 * pressure
+    middle_to_low = middle * 0.50 * pressure
+    return (
+        high - high_to_middle,
+        middle + high_to_middle - middle_to_low,
+        low + middle_to_low,
+    )
+
+
 def trade_income(
     trade_potential: float,
     trade_usage: int,

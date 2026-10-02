@@ -13,6 +13,7 @@ from stats.basic_stats import IndustrialStats
 from stats.industry_components import (
     ExtractionGroup,
     ExtractionOperation,
+    IndustrialStage,
     ResourceRegistration,
     ResourceType,
 )
@@ -55,6 +56,7 @@ def test_external_industry_format_is_human_readable_and_roundtrips():
         storage_capacity=100,
         accessibility=80,
         quality=75,
+        stage=IndustrialStage.ELECTRIFIED,
     )
     industry.set_extraction_operation(
         ExtractionOperation(
@@ -88,6 +90,7 @@ def test_external_industry_format_is_human_readable_and_roundtrips():
     assert "РАБОЧАЯ СИЛА" not in settings_text
     assert "СОСТОЯНИЕ РЕСУРСОВ" not in settings_text
     assert '[resources.iron]\nname = "Железо"' in settings_text
+    assert 'stage = "electrified"' in settings_text
     assert "СОСТОЯНИЕ ГРУПП" in state_text
     assert "Чёрные металлы [ferrous]" in state_text
     assert "[extraction.ferrous]" in settings_text
@@ -100,6 +103,10 @@ def test_external_industry_format_is_human_readable_and_roundtrips():
     assert "ПРОМЫШЛЕННОЕ_СОСТОЯНИЕ:" not in settings_text
     assert (
         parsed.resource_inventory.resources[ResourceType.IRON].stockpile == 25
+    )
+    assert (
+        parsed.resource_inventory.resources[ResourceType.IRON].stage
+        is IndustrialStage.ELECTRIFIED
     )
     assert parsed.production_rules == industry.production_rules
 
@@ -141,6 +148,7 @@ def test_arbitrary_resource_roundtrips_without_a_global_catalog_entry():
             storage_capacity=300,
             accessibility=72,
             quality=81,
+            stage=IndustrialStage.STEAM,
             consumption_per_month=20,
         )
     )
@@ -155,6 +163,7 @@ def test_arbitrary_resource_roundtrips_without_a_global_catalog_entry():
     )
     assert restored.definition.name == "Армированное стекло"
     assert restored.definition.group is ExtractionGroup.CONSTRUCTION
+    assert restored.stage is IndustrialStage.STEAM
     assert restored.stockpile == 25
     assert parsed.resource_demands[custom] == 20
 
@@ -499,6 +508,7 @@ def test_resource_and_extraction_rules_are_registered_separately():
     industry.set_extraction_operation(operation)
 
     assert state.enabled
+    assert state.stage is IndustrialStage.MACHINE
     assert industry.resource_demands[ResourceType.IRON] == 12
     assert "Лесное хозяйство [forestry]" in str(industry)
     assert "Уникальные ресурсы [unique]" in str(industry)
