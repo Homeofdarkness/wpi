@@ -1,0 +1,232 @@
+schema_version = 3
+
+[resources.wood]
+name = "Дерево"
+group = "forestry"
+stage = "manual"
+availability = 100.0
+quality = 60.0
+consumption_per_month = 180.0
+storage_capacity = 10000.0
+
+[resources.fresh_water]
+name = "Пресная вода"
+group = "fresh_water"
+stage = "manual"
+availability = 100.0
+quality = 75.0
+consumption_per_month = 1250.0
+storage_capacity = 30000.0
+
+[resources.copper]
+name = "Медь"
+group = "nonferrous"
+stage = "steam"
+availability = 100.0
+quality = 80.0
+consumption_per_month = 325.0
+storage_capacity = 10000.0
+
+[resources.iron]
+name = "Железо"
+group = "ferrous"
+stage = "steam"
+availability = 100.0
+quality = 80.0
+consumption_per_month = 325.0
+storage_capacity = 25000.0
+
+[resources.core_crystals]
+name = "Кристаллы ядра"
+group = "unique"
+stage = "manual"
+availability = 10.0
+quality = 100.0
+consumption_per_month = 15.0
+storage_capacity = 250.0
+
+[resources.rock_salt]
+name = "Каменная соль"
+group = "salts"
+stage = "manual"
+availability = 30.0
+quality = 97.0
+consumption_per_month = 300.0
+storage_capacity = 10000.0
+
+[resources.plumbum]
+name = "Свинец"
+group = "nonferrous"
+stage = "manual"
+availability = 125.0
+quality = 90.0
+consumption_per_month = 300.0
+storage_capacity = 10000.0
+
+[resources.stannum]
+name = "Олово"
+group = "nonferrous"
+stage = "manual"
+availability = 100.0
+quality = 80.0
+consumption_per_month = 300.0
+storage_capacity = 5000.0
+
+[resources.silver]
+name = "Серебро"
+group = "precious"
+stage = "steam"
+availability = 65.0
+quality = 40.0
+consumption_per_month = 300.0
+storage_capacity = 5000.0
+
+[resources.sulfur]
+name = "Сера"
+group = "chemical"
+stage = "steam"
+availability = 10.0
+quality = 40.0
+consumption_per_month = 5.0
+storage_capacity = 500.0
+
+[resources.sand]
+name = "Песок"
+group = "chemical"
+stage = "manual"
+availability = 150.0
+quality = 100.0
+consumption_per_month = 500.0
+storage_capacity = 100000.0
+
+[resources.basic_building_materials]
+name = "Базовые стройматериалы"
+group = "construction"
+stage = "machine"
+availability = 100.0
+quality = 100.0
+consumption_per_month = 250.0
+storage_capacity = 10000.0
+
+[resources.expensive_building_materials]
+name = "Дорогие стройматериалы"
+group = "construction"
+stage = "machine"
+availability = 100.0
+quality = 100.0
+consumption_per_month = 50.0
+storage_capacity = 4000.0
+
+[resources.coal]
+name = "Уголь"
+group = "solid_fuel"
+stage = "manual"
+availability = 70.0
+quality = 60.0
+consumption_per_month = 700.0
+storage_capacity = 30000.0
+
+[resources.slag]
+name = "Шлак"
+group = "recycling"
+stage = "machine"
+availability = 100.0
+quality = 100.0
+consumption_per_month = 0.0
+storage_capacity = 8000.0
+
+[extraction.forestry]
+intensity = 100.0
+priority = 1
+
+[extraction.fresh_water]
+intensity = 100.0
+priority = 1
+
+[extraction.nonferrous]
+intensity = 50.0
+priority = 1
+
+[extraction.ferrous]
+intensity = 60.0
+priority = 2
+
+[extraction.chemical]
+intensity = 60.0
+priority = 3
+
+[extraction.solid_fuel]
+intensity = 100.0
+priority = 1
+
+[extraction.core_crystals]
+intensity = 100.0
+priority = 3
+
+[extraction.salts]
+intensity = 100
+priority = 1
+
+[extraction.precious]
+intensity = 55
+priority = 2
+
+[[production]]
+id = "basic_building_materials"
+name = "Базовые стройматериалы"
+active = true
+batches = 400.0
+months = 33
+inputs = { copper = 2.0, wood = 0.6, iron = 1.0, coal = 1.0, sand = 0.5 }
+outputs = { basic_building_materials = 2.5 }
+byproducts = { slag = 0.4 }
+
+[[production]]
+id = "simple_hand_tools"
+name = "Простые ручные инструменты"
+active = true
+batches = 75.0
+months = 100
+inputs = { coal = 0.2, wood = 1.5, iron = 1.0, plumbum = 1.0, stannum = 1.0, silver = 1.0, copper = 1.0 }
+outputs = { simple_hand_tools = 6.0 }
+byproducts = { slag = 0.25 }
+
+[[production]]
+id = "expensive_building_materials"
+name = "Дорогие стройматериалы"
+active = true
+batches = 150.0
+months = 21
+inputs = { basic_building_materials = 0.4, copper = 0.5 }
+outputs = { expensive_building_materials = 1.0 }
+byproducts = { slag = 0.2 }
+
+[[effects]]
+id = "salt_abundance"
+dependencies = [{ group = "salts" }]
+targets = ["salt_security"]
+formula = "-target * groups.salts.deficit * 0.2"
+
+[[effects]]
+id = "freshwater_population_growth"
+dependencies = [{ resource = "fresh_water" }]
+targets = ["population_growth"]
+formula = "-target * resources.fresh_water.deficit * 0.4"
+
+[[effects]]
+id = "construction_infrastructure_expenses"
+dependencies = [{ group = "construction" }]
+targets = ["infrastructure_expenses"]
+formula = "target * (0.4 * groups.construction.deficit - min(0.25 * groups.construction.surplus, 0.2))"
+
+[[effects]]
+id = "hydrocarbons_transport"
+dependencies = [{ group = "hydrocarbons" }]
+targets = ["logistic", "trade_efficiency"]
+formula = "-target * groups.hydrocarbons.deficit * 0.08"
+
+[[effects]]
+id = "freshwater_society"
+dependencies = [{ resource = "fresh_water" }]
+targets = ["contentment", "food_diversity", "population_epidemic_chance"]
+formula = "-target * resources.fresh_water.deficit * 0.05"
