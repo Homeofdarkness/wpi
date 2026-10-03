@@ -28,7 +28,7 @@ class IndustrialStageProfile:
 
 
 INDUSTRIAL_STAGE_PROFILES: dict[IndustrialStage, IndustrialStageProfile] = {
-    IndustrialStage.MANUAL: IndustrialStageProfile(0.55, 1.35, 0.15),
+    IndustrialStage.MANUAL: IndustrialStageProfile(0.65, 1.35, 0.2),
     IndustrialStage.STEAM: IndustrialStageProfile(0.78, 1.15, 0.35),
     IndustrialStage.MACHINE: IndustrialStageProfile(1.00, 1.00, 0.60),
     IndustrialStage.ELECTRIFIED: IndustrialStageProfile(1.18, 0.82, 0.82),
