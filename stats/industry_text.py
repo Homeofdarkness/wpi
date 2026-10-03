@@ -60,7 +60,7 @@ class _ResourceConfig(pydantic.BaseModel):
     name: str = pydantic.Field(..., min_length=1)
     group: ExtractionGroup
     stage: IndustrialStage = IndustrialStage.MACHINE
-    availability: float = pydantic.Field(100.0, ge=0, le=100)
+    availability: float = pydantic.Field(100.0, ge=0, le=200)
     quality: float = pydantic.Field(100.0, ge=0, le=100)
     consumption_per_month: float = pydantic.Field(
         0.0,

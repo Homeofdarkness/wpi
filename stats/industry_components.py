@@ -227,7 +227,7 @@ class ResourceState(pydantic.BaseModel):
     enabled: bool = False
     stockpile: float = pydantic.Field(0.0, ge=0)
     storage_capacity: float = pydantic.Field(0.0, ge=0)
-    accessibility: float = pydantic.Field(100.0, ge=0, le=100)
+    accessibility: float = pydantic.Field(100.0, ge=0, le=200)
     quality: float = pydantic.Field(100.0, ge=0, le=100)
 
     @pydantic.model_validator(mode="after")
@@ -426,7 +426,7 @@ class ResourceRegistration(pydantic.BaseModel):
     stage: IndustrialStage = IndustrialStage.MACHINE
     stockpile: float = pydantic.Field(0.0, ge=0)
     storage_capacity: float = pydantic.Field(0.0, ge=0)
-    accessibility: float = pydantic.Field(100.0, ge=0, le=100)
+    accessibility: float = pydantic.Field(100.0, ge=0, le=200)
     quality: float = pydantic.Field(100.0, ge=0, le=100)
     consumption_per_month: float = pydantic.Field(
         0.0,
