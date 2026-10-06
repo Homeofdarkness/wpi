@@ -75,7 +75,7 @@ def test_turn_duration_constants_stay_synchronized():
 
 
 def test_national_extraction_capacity_comes_from_existing_spending():
-    assert national_extraction_capacity(341.3) == pytest.approx(102_390)
+    assert national_extraction_capacity(341.3) == pytest.approx(307_170)
     assert national_extraction_capacity(0) == 0
     assert national_extraction_capacity(-10) == 0
 
@@ -206,7 +206,7 @@ def test_atterium_extraction_uses_resource_spending_not_republic_spending():
         io=TestIO(),
     )
 
-    assert engine._extraction_capacities()["ferrous"] == pytest.approx(3_000)
+    assert engine._extraction_capacities()["ferrous"] == pytest.approx(9_000)
 
 
 def test_resource_catalog_has_every_approved_resource():

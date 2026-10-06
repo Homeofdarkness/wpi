@@ -87,6 +87,8 @@ class ExtractionGroup(StrEnum):
     PLANTATIONS = "plantations"
     RECYCLING = "recycling"
     MINERALS = "minerals"
+    FERTILIZERS = "fertilizers"
+    AGRICULTURAL_TOOLS = "agricultural_tools"
     UNIQUE = "unique"
 
 
@@ -348,6 +350,8 @@ class ResourceInventory(pydantic.BaseModel):
 
 
 class IndustrialWorkforce(pydantic.BaseModel):
+    """Industrial labour pool and its latest automatic allocation."""
+
     auto_size: bool = True
     ordinary_workers: int = pydantic.Field(0, ge=0)
     specialist_workers: int = pydantic.Field(0, ge=0)
@@ -355,6 +359,42 @@ class IndustrialWorkforce(pydantic.BaseModel):
     forced_workers: int = pydantic.Field(0, ge=0)
     health: float = pydantic.Field(100.0, ge=0, le=100)
     social_support: float = pydantic.Field(100.0, ge=0, le=100)
+    employed_workers: int = pydantic.Field(0, ge=0, exclude=True)
+    extraction_workers: int = pydantic.Field(0, ge=0, exclude=True)
+    production_workers: int = pydantic.Field(0, ge=0, exclude=True)
+    idle_workers: int = pydantic.Field(0, ge=0, exclude=True)
+    unmet_workers: int = pydantic.Field(0, ge=0, exclude=True)
+    extraction_required_workers: int = pydantic.Field(
+        0,
+        ge=0,
+        exclude=True,
+    )
+    production_required_workers: int = pydantic.Field(
+        0,
+        ge=0,
+        exclude=True,
+    )
+    labor_coverage: float = pydantic.Field(100.0, ge=0, le=100, exclude=True)
+    extraction_labor_coverage: float = pydantic.Field(
+        100.0,
+        ge=0,
+        le=100,
+        exclude=True,
+    )
+    production_labor_coverage: float = pydantic.Field(
+        100.0,
+        ge=0,
+        le=100,
+        exclude=True,
+    )
+
+    @property
+    def total_workers(self) -> int:
+        return (
+            self.ordinary_workers
+            + self.specialist_workers
+            + self.forced_workers
+        )
 
     def forced_labor_cost(self) -> float:
         return self.forced_workers / 10_000 * 0.1

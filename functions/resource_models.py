@@ -8,7 +8,15 @@ from dataclasses import dataclass
 from stats.industry_components import ExtractionGroup, IndustrialStage
 
 
-EXTRACTION_UNITS_PER_SPENDING = 300.0
+# One six-month currency unit of extraction spending buys this many abstract
+# resource units before geological, technological and labour multipliers.
+# The value is calibrated against the large 19th/early-20th-century country
+# template: abundant resources are covered, while rare/low-quality deposits
+# remain genuine bottlenecks instead of every material being scarce at once.
+EXTRACTION_UNITS_PER_SPENDING = 900.0
+INDUSTRIAL_WORKFORCE_SHARE = 0.18
+PRODUCTION_WORKERS_PER_UNIT = 250.0
+EXTRACTION_LABOR_SATURATION = 3.0
 
 
 @dataclass(frozen=True)
@@ -28,7 +36,7 @@ class IndustrialStageProfile:
 
 
 INDUSTRIAL_STAGE_PROFILES: dict[IndustrialStage, IndustrialStageProfile] = {
-    IndustrialStage.MANUAL: IndustrialStageProfile(0.65, 1.35, 0.2),
+    IndustrialStage.MANUAL: IndustrialStageProfile(0.55, 1.35, 0.15),
     IndustrialStage.STEAM: IndustrialStageProfile(0.78, 1.15, 0.35),
     IndustrialStage.MACHINE: IndustrialStageProfile(1.00, 1.00, 0.60),
     IndustrialStage.ELECTRIFIED: IndustrialStageProfile(1.18, 0.82, 0.82),
@@ -55,8 +63,46 @@ GROUP_PROFILES: dict[ExtractionGroup, ExtractionGroupProfile] = {
     ExtractionGroup.PLANTATIONS: ExtractionGroupProfile(0.70, 7_000),
     ExtractionGroup.RECYCLING: ExtractionGroupProfile(0.50, 6_000),
     ExtractionGroup.MINERALS: ExtractionGroupProfile(0.40, 10_000),
+    ExtractionGroup.FERTILIZERS: ExtractionGroupProfile(0.55, 8_000),
+    ExtractionGroup.AGRICULTURAL_TOOLS: ExtractionGroupProfile(0.45, 9_000),
     ExtractionGroup.UNIQUE: ExtractionGroupProfile(0.70, 20_000, 0.75),
 }
+
+
+def industrial_workers(
+    population: int,
+    worker_security: float,
+    workforce_share: float = INDUSTRIAL_WORKFORCE_SHARE,
+) -> int:
+    """Return workers available to extraction and industrial production."""
+    security = min(max(float(worker_security) / 100.0, 0.0), 1.0)
+    return max(round(max(population, 0) * workforce_share * security), 0)
+
+
+def extraction_workers_required(
+    profile: ExtractionGroupProfile,
+    intensity: float,
+    labor_dependency: float,
+) -> int:
+    """Workers needed to bring an extraction direction near saturation."""
+    intensity_factor = min(max(float(intensity) / 100.0, 0.0), 1.0)
+    required = (
+        profile.labor_scale
+        * EXTRACTION_LABOR_SATURATION
+        * intensity_factor
+        * max(float(labor_dependency), 0.0)
+    )
+    return max(round(required), 0)
+
+
+def production_workers_required(material_throughput: float) -> int:
+    """Workers required by the requested abstract production throughput."""
+    return max(
+        round(
+            max(float(material_throughput), 0.0) * PRODUCTION_WORKERS_PER_UNIT
+        ),
+        0,
+    )
 
 
 def specialist_capacity(
@@ -156,7 +202,10 @@ def extraction_factor_breakdown(
         "labor": labor_factor,
         "group_efficiency": group_profile.efficiency,
         "stage": stage_profile.extraction_multiplier,
-        "accessibility": min(max(accessibility / 100, 0.0), 1.0),
+        # Availability describes how rich and easy to exploit the deposits
+        # are. Values above 100% are intentional in the game world: 200%
+        # therefore doubles the otherwise identical extraction output.
+        "accessibility": min(max(accessibility / 100, 0.0), 2.0),
         "quality": min(max(quality / 100, 0.0), 1.0),
         "technology": technology_factor,
         "equipment": equipment_factor,

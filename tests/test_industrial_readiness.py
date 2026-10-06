@@ -8,7 +8,10 @@ from functions.industry_models import (
     industrial_readiness,
     industrial_strain,
 )
-from functions.trade_models import effective_quality_shares
+from functions.trade_models import (
+    effective_quality_shares,
+    quality_shares_from_readiness,
+)
 from modules.run_skip_move import TurnEngine
 from modules.skip_move_types import WorldState
 from tests.factories import make_basic_bundle
@@ -87,14 +90,11 @@ def test_trade_quality_shift_is_temporary_and_preserves_total() -> None:
     assert original == (30.0, 40.0, 30.0)
 
 
-def test_turn_uses_temporary_quality_and_keeps_primary_stats() -> None:
+def test_quality_is_derived_from_readiness_and_stability_is_unchanged() -> (
+    None
+):
     bundle = make_basic_bundle()
     bundle.industry.usages.append(50.0)
-    original_quality = (
-        bundle.economy.high_quality_percent,
-        bundle.economy.mid_quality_percent,
-        bundle.economy.low_quality_percent,
-    )
     stability = bundle.economy.stability
 
     make_engine(bundle).run()
@@ -102,12 +102,14 @@ def test_turn_uses_temporary_quality_and_keeps_primary_stats() -> None:
     readiness = bundle.industry.last_readiness
     assert readiness is not None
     assert readiness.strain == pytest.approx(100 - readiness.readiness)
-    assert readiness.effective_high_quality < original_quality[0]
-    assert (
+    expected_quality = quality_shares_from_readiness(readiness.readiness)
+    actual_quality = (
         bundle.economy.high_quality_percent,
         bundle.economy.mid_quality_percent,
         bundle.economy.low_quality_percent,
-    ) == original_quality
+    )
+    assert actual_quality == pytest.approx(expected_quality)
+    assert sum(actual_quality) == pytest.approx(100)
     assert bundle.economy.stability == stability
     report = bundle.industry.render_industrial_readiness_report()
     assert "ПРОМЫШЛЕННАЯ ГОТОВНОСТЬ И НАПРЯЖЁННОСТЬ" in report

@@ -184,6 +184,56 @@ INDUSTRY_LAYOUT = PrettyLayoutSpec(
             read_only=True,
             getter=lambda model: model.workforce.forced_workers,
         ),
+        "total_workers": field(
+            "total_workers",
+            "Всего доступно",
+            decimals=0,
+            read_only=True,
+            getter=lambda model: model.workforce.total_workers,
+        ),
+        "employed_workers": field(
+            "employed_workers",
+            "Занято",
+            decimals=0,
+            read_only=True,
+            getter=lambda model: model.workforce.employed_workers,
+        ),
+        "idle_workers": field(
+            "idle_workers",
+            "Резерв",
+            decimals=0,
+            read_only=True,
+            getter=lambda model: model.workforce.idle_workers,
+        ),
+        "extraction_workers": field(
+            "extraction_workers",
+            "В добыче",
+            decimals=0,
+            read_only=True,
+            getter=lambda model: model.workforce.extraction_workers,
+        ),
+        "production_workers": field(
+            "production_workers",
+            "В производстве",
+            decimals=0,
+            read_only=True,
+            getter=lambda model: model.workforce.production_workers,
+        ),
+        "unmet_workers": field(
+            "unmet_workers",
+            "Нехватка рабочих",
+            decimals=0,
+            read_only=True,
+            getter=lambda model: model.workforce.unmet_workers,
+        ),
+        "labor_coverage": field(
+            "labor_coverage",
+            "Обеспеченность кадрами",
+            decimals=1,
+            suffix="%",
+            read_only=True,
+            getter=lambda model: model.workforce.labor_coverage,
+        ),
     },
     lines=(
         PrettyLineSpec(title="ПРОМЫШЛЕННОСТЬ"),
@@ -217,8 +267,7 @@ INDUSTRY_LAYOUT = PrettyLayoutSpec(
         PrettyLineSpec(
             fields=("industry_income", "war_production_efficiency")
         ),
-        PrettyLineSpec(title="РЕСУРСОДОБЫЧА"),
-        PrettyLineSpec(fields=("active_resource_count", "resource_stockpile")),
+        PrettyLineSpec(title="ПРОМЫШЛЕННЫЕ РАБОЧИЕ"),
         PrettyLineSpec(
             fields=(
                 "ordinary_workers",
@@ -226,5 +275,20 @@ INDUSTRY_LAYOUT = PrettyLayoutSpec(
                 "forced_workers",
             )
         ),
+        PrettyLineSpec(
+            fields=("total_workers", "employed_workers", "idle_workers")
+        ),
+        PrettyLineSpec(
+            fields=(
+                "extraction_workers",
+                "production_workers",
+                "unmet_workers",
+                "labor_coverage",
+            ),
+            line_width=170,
+            min_gap=10,
+        ),
+        PrettyLineSpec(title="РЕСУРСОДОБЫЧА"),
+        PrettyLineSpec(fields=("active_resource_count", "resource_stockpile")),
     ),
 )

@@ -50,6 +50,8 @@ GROUP_NAMES: dict[ExtractionGroup, str] = {
     ExtractionGroup.PLANTATIONS: "Плантации",
     ExtractionGroup.RECYCLING: "Переработка отходов",
     ExtractionGroup.MINERALS: "Минералы",
+    ExtractionGroup.FERTILIZERS: "Удобрения",
+    ExtractionGroup.AGRICULTURAL_TOOLS: "Орудия труда СХ",
     ExtractionGroup.UNIQUE: "Уникальные ресурсы",
 }
 
@@ -557,23 +559,24 @@ def parse_industry_configuration(text: str) -> IndustryTextState | None:
                 r"\[[a-z][a-z0-9_]*\]", stripped
             ):
                 break
-            resource, stockpile, shown_storage, mined, shortage = (
+            resource, stockpile, _shown_storage, mined, shortage = (
                 _parse_state_row(stripped)
             )
             if resource not in registrations:
-                raise ValueError(
-                    "Есть состояние незарегистрированного ресурса "
-                    f"{resource.value}"
-                )
+                # The state table is only a snapshot from the previous turn.
+                # A resource may have been deliberately removed from the
+                # current TOML, so the configuration is authoritative here.
+                continue
             registration = registrations[resource]
-            if registration.storage_capacity == 0:
-                registration.storage_capacity = shown_storage
-            if abs(registration.storage_capacity - shown_storage) > 0.051:
-                raise ValueError(
-                    f"Вместимость склада {resource.value} различается в "
-                    "состоянии и настройках"
-                )
-            registration.stockpile = stockpile
+            # TOML is the source of truth for storage configuration.  The
+            # capacity printed in the state table is only a historical
+            # snapshot from the previous turn and may legitimately differ
+            # after a template/configuration update.  Preserve as much stock
+            # as fits into the newly configured warehouse.
+            registration.stockpile = min(
+                stockpile,
+                registration.storage_capacity,
+            )
             extracted[resource] = mined
             shortages[resource] = shortage
 

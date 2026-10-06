@@ -49,6 +49,7 @@ from modules.skip_move_types import (
 )
 from stats.industry_components import (
     ExtractionDiagnostic,
+    ExtractionGroup,
     IndustrialReadinessReport,
 )
 from stats.industry_effects import (
@@ -124,6 +125,7 @@ class TurnEngine:
         budget_before = float(economy.current_budget)
         logistic_wastes = self._logistic_wastes()
         results = self._prepare_calculations(logistic_wastes)
+        self._prepare_agricultural_resource_demands(results)
         self._update_industrial_workforce()
         self._calculate_operational_probabilities()
 
@@ -214,10 +216,9 @@ class TurnEngine:
                 if len(industry_state.usages) > 2
                 else 0.0
             )
-            workforce.ordinary_workers = round(
-                economy.population_count
-                * 0.35
-                * min(max(worker_security / 100, 0.0), 1.0)
+            workforce.ordinary_workers = resources.industrial_workers(
+                economy.population_count,
+                worker_security,
             )
         population_millions = max(economy.population_count / 1_000_000, 0.1)
         healthcare = economy.med_wastes[1] / population_millions
@@ -237,6 +238,76 @@ class TurnEngine:
         workforce.social_support += (
             social_target - workforce.social_support
         ) * adjustment
+        self._allocate_industrial_workforce()
+
+    def _extraction_workers_required(self) -> int:
+        """Estimate labour needed by all active extraction directions."""
+        required = 0
+        state = self.state.industry
+        for operation in self._active_extraction_operations():
+            target_states = self._extraction_targets(operation)
+            if not target_states:
+                continue
+            group, _ = state.resolve_extraction_target(operation)
+            labor_dependency = sum(
+                resources.INDUSTRIAL_STAGE_PROFILES[
+                    item.stage
+                ].labor_dependency
+                for item in target_states
+            ) / len(target_states)
+            required += resources.extraction_workers_required(
+                resources.GROUP_PROFILES[group],
+                operation.intensity,
+                labor_dependency,
+            )
+        return required
+
+    def _production_workers_required(self) -> int:
+        """Estimate labour needed by requested production for this turn."""
+        throughput = 0.0
+        for rule in self.state.industry.production_rules:
+            if not rule.enabled:
+                continue
+            per_batch = max(
+                sum(rule.inputs.values()), sum(rule.outputs.values())
+            )
+            throughput += self.calendar.scale_flow(rule.batches) * per_batch
+        return resources.production_workers_required(throughput)
+
+    def _allocate_industrial_workforce(self) -> None:
+        workforce = self.state.industry.workforce
+        extraction_required = self._extraction_workers_required()
+        production_required = self._production_workers_required()
+        total_required = extraction_required + production_required
+        total_available = workforce.total_workers
+        coverage = (
+            min(total_available / total_required, 1.0)
+            if total_required > 0
+            else 1.0
+        )
+        extraction_workers = round(extraction_required * coverage)
+        production_workers = round(production_required * coverage)
+        employed = min(
+            extraction_workers + production_workers, total_available
+        )
+        workforce.extraction_required_workers = extraction_required
+        workforce.production_required_workers = production_required
+        workforce.extraction_workers = extraction_workers
+        workforce.production_workers = production_workers
+        workforce.employed_workers = employed
+        workforce.idle_workers = max(total_available - employed, 0)
+        workforce.unmet_workers = max(total_required - employed, 0)
+        workforce.labor_coverage = coverage * 100.0
+        workforce.extraction_labor_coverage = (
+            min(extraction_workers / extraction_required * 100.0, 100.0)
+            if extraction_required > 0
+            else 100.0
+        )
+        workforce.production_labor_coverage = (
+            min(production_workers / production_required * 100.0, 100.0)
+            if production_required > 0
+            else 100.0
+        )
 
     def _worker_allocations(
         self,
@@ -248,20 +319,30 @@ class TurnEngine:
         if total_capacity <= 0:
             return {}
         workforce = self.state.industry.workforce
+        extraction_share = (
+            workforce.extraction_workers / workforce.total_workers
+            if workforce.total_workers > 0
+            else 0.0
+        )
+        ordinary_workers = round(workforce.ordinary_workers * extraction_share)
+        specialist_workers = round(
+            workforce.specialist_workers * extraction_share
+        )
+        forced_workers = round(workforce.forced_workers * extraction_share)
         return {
             operation.target_key: (
                 round(
-                    workforce.ordinary_workers
+                    ordinary_workers
                     * capacities[operation.target_key]
                     / total_capacity
                 ),
                 round(
-                    workforce.specialist_workers
+                    specialist_workers
                     * capacities[operation.target_key]
                     / total_capacity
                 ),
                 round(
-                    workforce.forced_workers
+                    forced_workers
                     * capacities[operation.target_key]
                     / total_capacity
                 ),
@@ -581,6 +662,64 @@ class TurnEngine:
         )
         results.food_balance = food_balance
 
+    def _prepare_agricultural_resource_demands(
+        self,
+        results: CalculationResults,
+    ) -> None:
+        """Derive fertilizer and tool demand from workers and territories."""
+        agriculture_state = self.state.agriculture
+        territories = max(self.state.inner_politics.provinces_count, 1)
+        workers = results.workers_count
+        density = agriculture.workers_per_territory(workers, territories)
+        fertilizer_monthly, tools_monthly = (
+            agriculture.agricultural_input_demand_per_month(
+                workers,
+                territories,
+            )
+        )
+        agriculture_state.last_workers_count = workers
+        agriculture_state.last_territories_count = territories
+        agriculture_state.last_workers_per_territory = density
+        agriculture_state.last_fertilizer_demand = (
+            fertilizer_monthly * self.calendar.months
+        )
+        agriculture_state.last_tools_demand = (
+            tools_monthly * self.calendar.months
+        )
+        self._replace_group_demand(
+            ExtractionGroup.FERTILIZERS,
+            fertilizer_monthly,
+        )
+        self._replace_group_demand(
+            ExtractionGroup.AGRICULTURAL_TOOLS,
+            tools_monthly,
+        )
+
+    def _replace_group_demand(
+        self,
+        group: ExtractionGroup,
+        monthly_total: float,
+    ) -> None:
+        state = self.state.industry
+        group_resources = [
+            item
+            for item in state.resource_inventory.resources.values()
+            if item.enabled and item.group is group
+        ]
+        if not group_resources:
+            return
+        weights = [
+            max(state.resource_demands.get(item.resource, 0.0), 0.0)
+            for item in group_resources
+        ]
+        if sum(weights) <= 0:
+            weights = [1.0] * len(group_resources)
+        total_weight = sum(weights)
+        for item, weight in zip(group_resources, weights, strict=True):
+            self._turn_resource_demands[item.resource] = (
+                monthly_total * self.calendar.months * weight / total_weight
+            )
+
     def _calculate_population(self, results: CalculationResults) -> None:
         economy = self.state.economy
         agriculture_state = self.state.agriculture
@@ -672,6 +811,37 @@ class TurnEngine:
         self._advance_industrial_resources()
         self._process_production_rules()
         self._spend_industrial_resources()
+        self._update_agricultural_resource_security()
+
+    def _update_agricultural_resource_security(self) -> None:
+        state = self.state.agriculture
+        _, group_metrics = self.state.industry.dependency_metrics(
+            self._turn_resource_demands
+        )
+        progress = self.calendar.scale_progress(0.10)
+        for index, group in (
+            (1, ExtractionGroup.FERTILIZERS),
+            (2, ExtractionGroup.AGRICULTURAL_TOOLS),
+        ):
+            has_resources = any(
+                item.enabled and item.group is group
+                for item in (
+                    self.state.industry.resource_inventory.resources.values()
+                )
+            )
+            if not has_resources:
+                continue
+            metric = group_metrics[group.value]
+            state.securities[index] = round(
+                agriculture.resource_security_update(
+                    state.securities[index],
+                    deficit=metric.deficit,
+                    surplus=metric.surplus,
+                    workers_percent=state.workers_percent,
+                    progress=progress,
+                ),
+                2,
+            )
 
     def _resolve_industrial_effect_targets(
         self,
@@ -795,6 +965,7 @@ class TurnEngine:
                 qualification,
                 politics.education_level,
                 politics.knowledge_level,
+                state.workforce.labor_coverage,
             ),
             "infrastructure": industry.infrastructure_readiness(
                 state.logistic,
@@ -814,12 +985,14 @@ class TurnEngine:
         }
         readiness = industry.industrial_readiness(components)
         strain = industry.industrial_strain(readiness)
-        effective_quality = trade.effective_quality_shares(
+        effective_quality = trade.quality_shares_from_readiness(
+            readiness,
+        )
+        (
             economy.high_quality_percent,
             economy.mid_quality_percent,
             economy.low_quality_percent,
-            strain,
-        )
+        ) = effective_quality
         state.last_readiness = IndustrialReadinessReport(
             **components,
             readiness=readiness,
@@ -977,11 +1150,18 @@ class TurnEngine:
                 )
                 is not None
             }
+            manufactured_resources = {
+                resource
+                for rule in state.production_rules
+                if rule.enabled
+                for resource in rule.outputs
+            }
             candidates = [
                 resource_state
                 for resource_state in inventory.values()
                 if resource_state.definition.group is target_group
                 and resource_state.resource not in resource_overrides
+                and resource_state.resource not in manufactured_resources
             ]
         return [
             resource_state
@@ -1020,16 +1200,22 @@ class TurnEngine:
             rule for rule in state.production_rules if rule.enabled
         ]
         state.last_production = []
+        labor_factor = state.workforce.production_labor_coverage / 100.0
         for rule in active_rules:
+            planned_batches = self.calendar.scale_flow(rule.batches)
             result = production.execute_rule(
                 state.resource_inventory,
                 rule,
                 self.state.probabilities.process_yield,
-                requested_batches=self.calendar.scale_flow(rule.batches),
+                requested_batches=planned_batches * labor_factor,
             )
             rule.advance_turn(self.calendar.reference_scale)
             state.last_production.append(
-                replace(result, turns_remaining=rule.turns_remaining)
+                replace(
+                    result,
+                    requested_batches=planned_batches,
+                    turns_remaining=rule.turns_remaining,
+                )
             )
 
     def _spend_industrial_resources(self) -> None:

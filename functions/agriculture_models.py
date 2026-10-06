@@ -11,6 +11,10 @@ from functions.inbuilt import parabola, safe_div, sigmoid, tanh
 
 
 WORKERS_PER_FOOD_UNIT = 550.0
+FERTILIZER_BASE_PER_TERRITORY = 0.35
+FERTILIZER_WORKERS_DIVISOR = 40_000.0
+TOOLS_BASE_PER_TERRITORY = 0.10
+TOOLS_WORKERS_DIVISOR = 2_500.0
 
 
 def additional_waste_per_worker(security_percent: float) -> float:
@@ -71,6 +75,49 @@ def workers_count(
             adjusted_workers = base_workers * redistribution_factor
             return round(adjusted_workers * workforce_factor)
     return 0
+
+
+def workers_per_territory(workers: int, territories: int) -> float:
+    """Return the agricultural workforce density used by supply demand."""
+    return max(int(workers), 0) / max(int(territories), 1)
+
+
+def agricultural_input_demand_per_month(
+    workers: int,
+    territories: int,
+) -> tuple[float, float]:
+    """Monthly fertilizer and tool demand in abstract resource units."""
+    safe_territories = max(int(territories), 1)
+    density = workers_per_territory(workers, safe_territories)
+    fertilizers = safe_territories * (
+        FERTILIZER_BASE_PER_TERRITORY + density / FERTILIZER_WORKERS_DIVISOR
+    )
+    tools = safe_territories * (
+        TOOLS_BASE_PER_TERRITORY + density / TOOLS_WORKERS_DIVISOR
+    )
+    return fertilizers, tools
+
+
+def resource_security_update(
+    current: float,
+    *,
+    deficit: float,
+    surplus: float,
+    workers_percent: float,
+    progress: float,
+) -> float:
+    """Move an agricultural security toward its supply-defined target."""
+    floor = 20.0 if workers_percent >= 50 else 5.0
+    balance = min(max(float(surplus) - float(deficit), -1.0), 1.0)
+    if balance < 0:
+        target = floor
+    elif balance > 0:
+        target = 100.0
+    else:
+        return min(max(float(current), floor), 100.0)
+    speed = min(max(float(progress), 0.0), 1.0) * abs(balance)
+    updated = float(current) + (target - float(current)) * speed
+    return min(max(updated, floor), 100.0)
 
 
 def agriculture_wastes(

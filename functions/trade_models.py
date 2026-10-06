@@ -189,6 +189,17 @@ def effective_quality_shares(
     )
 
 
+def quality_shares_from_readiness(
+    industrial_readiness: float,
+) -> tuple[float, float, float]:
+    """Derive the complete goods-quality mix from industrial readiness."""
+    readiness = _clip(float(industrial_readiness) / 100.0, 0.0, 1.0)
+    high = 100.0 * readiness**2
+    middle = 200.0 * readiness * (1.0 - readiness)
+    low = 100.0 - high - middle
+    return high, middle, low
+
+
 def trade_income(
     trade_potential: float,
     trade_usage: int,

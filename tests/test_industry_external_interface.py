@@ -168,6 +168,99 @@ def test_arbitrary_resource_roundtrips_without_a_global_catalog_entry():
     assert parsed.resource_demands[custom] == 20
 
 
+def test_toml_storage_capacity_overrides_the_state_snapshot() -> None:
+    industry = make_basic_bundle().industry
+    industry.register_resource(
+        ResourceRegistration(
+            resource=ResourceType.COPPER,
+            stockpile=80,
+            storage_capacity=100,
+        )
+    )
+    state_text = str(industry)
+    settings = industry.render_configuration()
+    expanded_settings = settings.replace(
+        "storage_capacity = 100.0",
+        "storage_capacity = 200.0",
+    )
+    reduced_settings = settings.replace(
+        "storage_capacity = 100.0",
+        "storage_capacity = 50.0",
+    )
+
+    expanded = IndustrialStats.from_stats_text(
+        f"{state_text}\n{expanded_settings}"
+    )
+    reduced = IndustrialStats.from_stats_text(
+        f"{state_text}\n{reduced_settings}"
+    )
+
+    expanded_copper = expanded.resource_inventory.resources[
+        ResourceType.COPPER
+    ]
+    reduced_copper = reduced.resource_inventory.resources[ResourceType.COPPER]
+    assert expanded_copper.storage_capacity == 200
+    assert expanded_copper.stockpile == 80
+    assert reduced_copper.storage_capacity == 50
+    assert reduced_copper.stockpile == 50
+
+
+def test_toml_resource_registry_ignores_obsolete_state_rows() -> None:
+    old_industry = make_basic_bundle().industry
+    old_industry.register_resource(
+        ResourceRegistration(
+            resource=ResourceType.COPPER,
+            stockpile=80,
+            storage_capacity=100,
+        )
+    )
+    old_industry.register_resource(
+        ResourceRegistration(
+            resource=ResourceType.ALUMINUM,
+            stockpile=60,
+            storage_capacity=120,
+        )
+    )
+    old_industry.last_extracted = {
+        ResourceType.COPPER: 12,
+        ResourceType.ALUMINUM: 9,
+    }
+    old_industry.resource_shortages = {
+        ResourceType.COPPER: 3,
+        ResourceType.ALUMINUM: 4,
+    }
+
+    configured_industry = make_basic_bundle().industry
+    configured_industry.register_resource(
+        ResourceRegistration(
+            resource=ResourceType.COPPER,
+            storage_capacity=200,
+        )
+    )
+    configured_industry.resource_inventory.resources.pop(ResourceType.ALUMINUM)
+
+    parsed = IndustrialStats.from_stats_text(
+        f"{old_industry}\n{configured_industry.render_configuration()}"
+    )
+
+    aluminum = parsed.resource_inventory.resources[ResourceType.ALUMINUM]
+    assert not aluminum.enabled
+    assert (
+        parsed.resource_inventory.resources[ResourceType.COPPER].stockpile
+        == 80
+    )
+    assert (
+        parsed.resource_inventory.resources[
+            ResourceType.COPPER
+        ].storage_capacity
+        == 200
+    )
+    assert parsed.last_extracted[ResourceType.COPPER] == 12
+    assert ResourceType.ALUMINUM not in parsed.last_extracted
+    assert parsed.resource_shortages[ResourceType.COPPER] == 3
+    assert ResourceType.ALUMINUM not in parsed.resource_shortages
+
+
 def test_legacy_consumption_key_is_read_as_monthly_rate() -> None:
     industry = make_basic_bundle().industry
     industry.register_resource(

@@ -56,6 +56,43 @@ AGRICULTURE_COMMON_FIELDS = {
         suffix="%",
         aliases=("Перераспределение рабочих",),
     ),
+    "workers_count": field(
+        "workers_count",
+        "Рабочие в сельском хозяйстве",
+        decimals=0,
+        read_only=True,
+        getter=lambda model: model.last_workers_count,
+    ),
+    "territories_count": field(
+        "territories_count",
+        "Территории",
+        decimals=0,
+        read_only=True,
+        getter=lambda model: model.last_territories_count,
+    ),
+    "workers_per_territory": field(
+        "workers_per_territory",
+        "Рабочих на территорию",
+        decimals=1,
+        read_only=True,
+        getter=lambda model: model.last_workers_per_territory,
+    ),
+    "fertilizer_demand": field(
+        "fertilizer_demand",
+        "Потребность в удобрениях за ход",
+        decimals=1,
+        suffix=" ед.рес.",
+        read_only=True,
+        getter=lambda model: model.last_fertilizer_demand,
+    ),
+    "tools_demand": field(
+        "tools_demand",
+        "Потребность в орудиях за ход",
+        decimals=1,
+        suffix=" ед.рес.",
+        read_only=True,
+        getter=lambda model: model.last_tools_demand,
+    ),
     "storages_upkeep": field(
         "storages_upkeep",
         "Содержание хранилищ",
@@ -159,6 +196,21 @@ AGRICULTURE_LAYOUT = PrettyLayoutSpec(
             line_width=170,
             min_gap=12,
         ),
+        PrettyLineSpec(
+            fields=(
+                "workers_count",
+                "territories_count",
+                "workers_per_territory",
+            ),
+            line_width=170,
+            min_gap=12,
+        ),
+        PrettyLineSpec(title="РЕСУРСЫ СЕЛЬСКОГО ХОЗЯЙСТВА", gap_before=1),
+        PrettyLineSpec(
+            fields=("fertilizer_demand", "tools_demand"),
+            line_width=170,
+            min_gap=20,
+        ),
         PrettyLineSpec(title="ТРАТЫ И ПОТРЕБЛЕНИЕ", gap_before=1),
         PrettyLineSpec(
             fields=(
@@ -228,6 +280,15 @@ ISF_AGRICULTURE_LAYOUT = PrettyLayoutSpec(
                 "storages_upkeep",
             )
         ),
+        PrettyLineSpec(
+            fields=(
+                "workers_count",
+                "territories_count",
+                "workers_per_territory",
+            )
+        ),
+        PrettyLineSpec(title="РЕСУРСЫ СЕЛЬСКОГО ХОЗЯЙСТВА"),
+        PrettyLineSpec(fields=("fertilizer_demand", "tools_demand")),
         PrettyLineSpec(
             fields=(
                 "consumption_factor",

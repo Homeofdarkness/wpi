@@ -497,7 +497,7 @@ class IndustrialStats(StatsBase):
                     "ИТОГ И ВЛИЯНИЕ",
                     (
                         ("ИТОГ", summary_rows),
-                        ("ЭФФЕКТИВНОЕ КАЧЕСТВО ДЛЯ ТОРГОВЛИ", quality_rows),
+                        ("АВТОМАТИЧЕСКОЕ КАЧЕСТВО ТОВАРОВ", quality_rows),
                     ),
                 ),
             )
@@ -687,6 +687,12 @@ class IndustrialStats(StatsBase):
                     f"{result.completed_batches:.1f} партий",
                 ),
                 ("Осталось", f"{remaining_months} мес."),
+                (
+                    "Рабочая сила",
+                    f"{self.workforce.production_labor_coverage:.1f}% "
+                    f"({self.workforce.production_workers} из "
+                    f"{self.workforce.production_required_workers})",
+                ),
                 (
                     "Входы",
                     "Взято: "
@@ -981,6 +987,19 @@ class AgricultureStats(StatsBase):
     food_diversity: float | None = None
     agriculture_efficiency: float | None = None
     agriculture_development: float | None = None
+    last_workers_count: int = pydantic.Field(0, ge=0, exclude=True)
+    last_territories_count: int = pydantic.Field(0, ge=0, exclude=True)
+    last_workers_per_territory: float = pydantic.Field(
+        0.0,
+        ge=0,
+        exclude=True,
+    )
+    last_fertilizer_demand: float = pydantic.Field(
+        0.0,
+        ge=0,
+        exclude=True,
+    )
+    last_tools_demand: float = pydantic.Field(0.0, ge=0, exclude=True)
 
     @staticmethod
     @override

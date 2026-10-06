@@ -36,12 +36,14 @@ def personnel_readiness(
     qualification: float,
     education: float,
     knowledge: float,
+    workforce_coverage: float = 100.0,
 ) -> float:
     """Skills available both inside industry and in wider society."""
     return _score(
-        0.45 * _score(qualification)
-        + 0.30 * _score(education)
-        + 0.25 * _score(knowledge)
+        0.35 * _score(qualification)
+        + 0.25 * _score(education)
+        + 0.20 * _score(knowledge)
+        + 0.20 * _score(workforce_coverage)
     )
 
 
