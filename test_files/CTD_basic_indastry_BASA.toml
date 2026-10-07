@@ -51,7 +51,7 @@ group = "salts"
 stage = "manual"
 availability = 30.0
 quality = 97.0
-consumption_per_month = 300.0
+consumption_per_month = 50.0
 storage_capacity = 10000.0
 
 [resources.plumbum]
@@ -81,6 +81,42 @@ quality = 40.0
 consumption_per_month = 300.0
 storage_capacity = 5000.0
 
+[resources.gold]
+name = "Золото"
+group = "precious"
+stage = "manual"
+availability = 40.0
+quality = 100.0
+consumption_per_month = 35
+storage_capacity = 2000.0
+
+[resources.acids]
+name = "Кислоты"
+group = "chemical"
+stage = "manual"
+availability = 70.0
+quality = 50.0
+consumption_per_month = 40
+storage_capacity = 1000.0
+
+[resources.cast_iron]
+name = "Чугун"
+group = "ferrous"
+stage = "steam"
+availability = 100.0
+quality = 40.0
+consumption_per_month = 0
+storage_capacity = 30000.0
+
+[resources.primitive_fertilizers]
+name = "Примитивные удобрения"
+group = "unique"
+stage = "manual"
+availability = 100.0
+quality = 80.0
+consumption_per_month = 40
+storage_capacity = 1000.0
+
 [resources.sulfur]
 name = "Сера"
 group = "chemical"
@@ -90,13 +126,31 @@ quality = 40.0
 consumption_per_month = 5.0
 storage_capacity = 500.0
 
-[resources.sand]
-name = "Песок"
-group = "chemical"
+[resources.stone_limestone_granite]
+name = "Базовые стройматериалы пород земли"
+group = "construction"
 stage = "manual"
 availability = 150.0
 quality = 100.0
-consumption_per_month = 500.0
+consumption_per_month = 150.0
+storage_capacity = 20000.0
+
+[resources.premium_stone_marble]
+name = "Элитный камень и мрамор"
+group = "construction"
+stage = "manual"
+availability = 80.0
+quality = 70.0
+consumption_per_month = 10.0
+storage_capacity = 2000.0
+
+[resources.sand]
+name = "Песок"
+group = "construction"
+stage = "manual"
+availability = 150.0
+quality = 100.0
+consumption_per_month = 100.0
 storage_capacity = 100000.0
 
 [resources.basic_building_materials]
@@ -108,13 +162,22 @@ quality = 100.0
 consumption_per_month = 250.0
 storage_capacity = 10000.0
 
+[resources.simple_hand_tools]
+name = "Простые ручные инструменты"
+group = "construction"
+stage = "manual"
+availability = 100.0
+quality = 100.0
+consumption_per_month = 60.0
+storage_capacity = 5000.0
+
 [resources.expensive_building_materials]
 name = "Дорогие стройматериалы"
 group = "construction"
 stage = "machine"
 availability = 100.0
 quality = 100.0
-consumption_per_month = 50.0
+consumption_per_month = 70.0
 storage_capacity = 4000.0
 
 [resources.coal]
@@ -129,7 +192,7 @@ storage_capacity = 30000.0
 [resources.slag]
 name = "Шлак"
 group = "recycling"
-stage = "machine"
+stage = "manual"
 availability = 100.0
 quality = 100.0
 consumption_per_month = 0.0
@@ -164,28 +227,36 @@ intensity = 100.0
 priority = 3
 
 [extraction.salts]
-intensity = 100
+intensity = 100.0
 priority = 1
 
 [extraction.precious]
-intensity = 55
+intensity = 55.0
 priority = 2
+
+[extraction.construction]
+intensity = 100.0
+priority = 2
+
+[extraction.primitive_fertilizers]
+intensity= 30.0
+priority = 3
 
 [[production]]
 id = "basic_building_materials"
 name = "Базовые стройматериалы"
 active = true
-batches = 400.0
+batches = 50.0
 months = 33
-inputs = { copper = 2.0, wood = 0.6, iron = 1.0, coal = 1.0, sand = 0.5 }
-outputs = { basic_building_materials = 2.5 }
-byproducts = { slag = 0.4 }
+inputs = { copper = 2.0, wood = 3.0, iron = 1.0, cast_iron = 2.5, coal = 1.0, sand = 3.5 }
+outputs = { basic_building_materials = 7.0 }
+byproducts = { slag = 2.4 }
 
 [[production]]
 id = "simple_hand_tools"
 name = "Простые ручные инструменты"
 active = true
-batches = 75.0
+batches = 15.0
 months = 100
 inputs = { coal = 0.2, wood = 1.5, iron = 1.0, plumbum = 1.0, stannum = 1.0, silver = 1.0, copper = 1.0 }
 outputs = { simple_hand_tools = 6.0 }
@@ -195,11 +266,11 @@ byproducts = { slag = 0.25 }
 id = "expensive_building_materials"
 name = "Дорогие стройматериалы"
 active = true
-batches = 150.0
+batches = 25.0
 months = 21
-inputs = { basic_building_materials = 0.4, copper = 0.5 }
-outputs = { expensive_building_materials = 1.0 }
-byproducts = { slag = 0.2 }
+inputs = { basic_building_materials = 0.5, copper = 0.2, wood = 1.0, coal = 1.2, stannum = 0.2, silver = 1.5, gold = 1.0, premium_stone_marble = 1.0 }
+outputs = { expensive_building_materials = 5.6 }
+byproducts = { slag = 0.4 }
 
 [[effects]]
 id = "salt_abundance"
