@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, get_origin
+from typing import Any, ClassVar, get_origin
 
 import pydantic
 
@@ -8,6 +8,8 @@ from utils.input_parsers import InputParser
 
 
 class StatsBase(pydantic.BaseModel, ABC):
+    _forced_user_input_fields: ClassVar[frozenset[str]] = frozenset()
+
     def model_post_init(self, __context) -> None:
         self.recalculate_derived_fields()
 
@@ -46,7 +48,10 @@ class StatsBase(pydantic.BaseModel, ABC):
                 labels.setdefault(spec.field_name, []).append(spec.label)
 
         for field_name, field_info in fields.items():
-            if not field_info.is_required():
+            if (
+                not field_info.is_required()
+                and field_name not in cls._forced_user_input_fields
+            ):
                 continue
             prompt = " / ".join(dict.fromkeys(labels.get(field_name, [])))
             prompt = prompt or field_name

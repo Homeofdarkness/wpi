@@ -122,6 +122,17 @@ def food_diversity_income_factor(food_diversity: float) -> float:
     return 0.9 + 0.22 * normalized
 
 
+def natural_fertility_factor(natural_fertility: float) -> float:
+    """Scale population growth by the explicit 0..250 fertility value."""
+    return min(max(float(natural_fertility), 0.0), 250.0) / 100.0
+
+
+def racial_diversity_fertility_factor(influence: float) -> float:
+    """Apply ±0.1% growth for every VRRF point in the -1000..1000 range."""
+    bounded = min(max(float(influence), -1000.0), 1000.0)
+    return 1.0 + bounded / 1000.0
+
+
 def population_decrement_factor(
     decrement_coefficient: int,
     reference_scale: float = TURN_SCALE,

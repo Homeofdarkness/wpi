@@ -142,6 +142,11 @@ def render_population_growth_report(report: SkipMoveReport) -> str:
         ("Коэффициент стабильности", growth.stability_factor),
         ("Коэффициент довольства", growth.contentment_factor),
         ("Коэффициент многодетности", growth.child_policy_factor),
+        ("Естественная фертильность", growth.natural_fertility_factor),
+        (
+            "Влияние расового разнообразия",
+            growth.racial_diversity_fertility_factor,
+        ),
         ("Коэффициент продовольствия", growth.food_security_factor),
         ("Коэффициент упадка общества", growth.social_decline_factor),
         ("Коэффициент разнообразия", growth.food_diversity_factor),

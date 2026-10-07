@@ -369,6 +369,18 @@ class IndustrialWorkforce(pydantic.BaseModel):
         ge=0,
         exclude=True,
     )
+    industrial_population_target_share: float = pydantic.Field(
+        0.0,
+        ge=0,
+        le=100,
+        exclude=True,
+    )
+    extraction_target_share: float = pydantic.Field(
+        0.0,
+        ge=0,
+        le=100,
+        exclude=True,
+    )
     production_required_workers: int = pydantic.Field(
         0,
         ge=0,

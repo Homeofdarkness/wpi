@@ -114,6 +114,14 @@ class EdenModel:
             grace_of_the_highest=20,
             commitment_to_cause=94,
             departure_from_truths=9,
+            natural_fertility=100.0,
+            racial_diversity_fertility_influence=0.0,
+            inequality=25.0,
+            polarization=20.0,
+            information_quality=60.0,
+            regional_separatism=0.0,
+            social_mobility=50.0,
+            war_fatigue=0.0,
         )
         return BasicBundleModel(
             economy=economy,

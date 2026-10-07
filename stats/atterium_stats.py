@@ -23,6 +23,19 @@ class AtteriumEconomyStats(EconomyStatsBase):
 
 
 class AtteriumInnerPoliticsStats(StatsBase):
+    _forced_user_input_fields = frozenset(
+        {
+            "natural_fertility",
+            "racial_diversity_fertility_influence",
+            "inequality",
+            "polarization",
+            "information_quality",
+            "regional_separatism",
+            "social_mobility",
+            "war_fatigue",
+        }
+    )
+
     state_apparatus_functionality: float
     state_apparatus_size: int
     state_apparatus_efficiency: int
@@ -59,6 +72,12 @@ class AtteriumInnerPoliticsStats(StatsBase):
     grace_of_the_highest: int
     commitment_to_cause: int
     departure_from_truths: int
+    natural_fertility: float = pydantic.Field(100.0, ge=0, le=250)
+    racial_diversity_fertility_influence: float = pydantic.Field(
+        0.0,
+        ge=-1000,
+        le=1000,
+    )
     research_success_chance: float | None = None
     society_decline: float | None = None
     inequality: float = pydantic.Field(25.0, ge=0, le=100)

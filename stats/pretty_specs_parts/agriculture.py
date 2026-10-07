@@ -63,19 +63,13 @@ AGRICULTURE_COMMON_FIELDS = {
         read_only=True,
         getter=lambda model: model.last_workers_count,
     ),
-    "territories_count": field(
-        "territories_count",
-        "Территории",
+    "area_hectares": field(
+        "area_hectares",
+        "Обрабатываемая площадь",
         decimals=0,
+        suffix=" га",
         read_only=True,
-        getter=lambda model: model.last_territories_count,
-    ),
-    "workers_per_territory": field(
-        "workers_per_territory",
-        "Рабочих на территорию",
-        decimals=1,
-        read_only=True,
-        getter=lambda model: model.last_workers_per_territory,
+        getter=lambda model: model.last_area_hectares,
     ),
     "fertilizer_demand": field(
         "fertilizer_demand",
@@ -199,8 +193,7 @@ AGRICULTURE_LAYOUT = PrettyLayoutSpec(
         PrettyLineSpec(
             fields=(
                 "workers_count",
-                "territories_count",
-                "workers_per_territory",
+                "area_hectares",
             ),
             line_width=170,
             min_gap=12,
@@ -283,8 +276,7 @@ ISF_AGRICULTURE_LAYOUT = PrettyLayoutSpec(
         PrettyLineSpec(
             fields=(
                 "workers_count",
-                "territories_count",
-                "workers_per_territory",
+                "area_hectares",
             )
         ),
         PrettyLineSpec(title="РЕСУРСЫ СЕЛЬСКОГО ХОЗЯЙСТВА"),

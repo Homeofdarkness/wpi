@@ -10,8 +10,11 @@ from functions.probability_models import (
 )
 from functions.resource_models import (
     GROUP_PROFILES,
+    INDUSTRIAL_STAGE_EXTRACTION_SHARES,
+    INDUSTRIAL_STAGE_POPULATION_SHARES,
     INDUSTRIAL_STAGE_PROFILES,
     extraction_allocation_weight,
+    extraction_demand_focus,
     extraction_output,
     extraction_priority_weight,
     national_extraction_capacity,
@@ -92,6 +95,166 @@ def test_extraction_allocation_weight_combines_priority_and_intensity():
     assert extraction_allocation_weight(1, 2, 0) == 0
 
 
+def test_demand_focus_increases_as_previous_coverage_falls() -> None:
+    assert extraction_demand_focus(100) == pytest.approx(0.2)
+    assert extraction_demand_focus(50) == pytest.approx(0.4)
+    assert extraction_demand_focus(0) == pytest.approx(0.6)
+
+
+def test_manual_and_steam_stages_require_the_same_workers() -> None:
+    manual = INDUSTRIAL_STAGE_PROFILES[IndustrialStage.MANUAL]
+    steam = INDUSTRIAL_STAGE_PROFILES[IndustrialStage.STEAM]
+
+    assert manual.labor_dependency == steam.labor_dependency
+
+
+def test_stage_workforce_shares_match_customer_rules() -> None:
+    assert {
+        IndustrialStage.MANUAL: pytest.approx(1 / 3),
+        IndustrialStage.STEAM: pytest.approx(1 / 3),
+        IndustrialStage.MACHINE: pytest.approx(1 / 4),
+        IndustrialStage.ELECTRIFIED: pytest.approx(1 / 5),
+        IndustrialStage.MASS_PRODUCTION: pytest.approx(1 / 5),
+    } == INDUSTRIAL_STAGE_POPULATION_SHARES
+    assert {
+        IndustrialStage.MANUAL: pytest.approx(1 / 3),
+        IndustrialStage.STEAM: pytest.approx(1 / 3),
+        IndustrialStage.MACHINE: pytest.approx(1 / 4),
+        IndustrialStage.ELECTRIFIED: pytest.approx(1 / 4),
+        IndustrialStage.MASS_PRODUCTION: pytest.approx(1 / 5),
+    } == INDUSTRIAL_STAGE_EXTRACTION_SHARES
+
+
+@pytest.mark.parametrize("stage", tuple(IndustrialStage))
+def test_stage_sets_population_and_extraction_worker_ratios(
+    stage: IndustrialStage,
+) -> None:
+    bundle = make_basic_bundle()
+    iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
+    iron.enabled = True
+    iron.stage = stage
+    iron.storage_capacity = 10_000
+    bundle.industry.usages[2] = 100
+    bundle.industry.extraction_operations = [
+        ExtractionOperation(target="iron", intensity=100, priority=1)
+    ]
+    engine = make_engine(bundle)
+
+    engine._update_industrial_workforce()
+
+    workforce = bundle.industry.workforce
+    population_share = INDUSTRIAL_STAGE_POPULATION_SHARES[stage]
+    extraction_share = INDUSTRIAL_STAGE_EXTRACTION_SHARES[stage]
+    expected_total = round(bundle.economy.population_count * population_share)
+    assert workforce.industrial_population_target_share == pytest.approx(
+        population_share * 100
+    )
+    assert workforce.total_workers == expected_total
+    assert workforce.extraction_target_share == pytest.approx(
+        extraction_share * 100
+    )
+    assert workforce.extraction_required_workers == round(
+        expected_total * extraction_share
+    )
+    assert workforce.ordinary_workers + workforce.specialist_workers == (
+        expected_total
+    )
+
+
+def test_worker_security_scales_stage_population_pool() -> None:
+    bundle = make_basic_bundle()
+    iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
+    iron.enabled = True
+    iron.stage = IndustrialStage.MACHINE
+    iron.storage_capacity = 10_000
+    bundle.industry.usages[2] = 60
+    bundle.industry.extraction_operations = [
+        ExtractionOperation(target="iron", intensity=100, priority=1)
+    ]
+
+    make_engine(bundle)._update_industrial_workforce()
+
+    assert bundle.industry.workforce.total_workers == round(
+        bundle.economy.population_count * (1 / 4) * 0.60
+    )
+
+
+@pytest.mark.parametrize(
+    ("stage", "expected_share"),
+    tuple(INDUSTRIAL_STAGE_EXTRACTION_SHARES.items()),
+)
+def test_single_stage_sets_extraction_worker_share(
+    stage: IndustrialStage,
+    expected_share: float,
+) -> None:
+    bundle = make_basic_bundle()
+    configure_iron_extraction(bundle)
+    bundle.industry.resource_inventory.resources[
+        ResourceType.IRON
+    ].stage = stage
+    engine = make_engine(bundle)
+
+    engine._allocate_industrial_workforce()
+
+    workforce = bundle.industry.workforce
+    assert workforce.extraction_target_share == pytest.approx(
+        expected_share * 100
+    )
+    assert workforce.extraction_required_workers == round(
+        workforce.total_workers * expected_share
+    )
+
+
+def test_mixed_stages_use_one_weighted_worker_share() -> None:
+    bundle = make_basic_bundle()
+    bundle.industry.workforce.auto_size = False
+    bundle.industry.workforce.ordinary_workers = 24_000
+    bundle.industry.workforce.specialist_workers = 0
+    iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
+    wood = bundle.industry.resource_inventory.resources[ResourceType.WOOD]
+    for item in (iron, wood):
+        item.enabled = True
+        item.storage_capacity = 10_000
+    iron.stage = IndustrialStage.MANUAL
+    wood.stage = IndustrialStage.ELECTRIFIED
+    bundle.industry.extraction_operations = [
+        ExtractionOperation(target="iron", intensity=100, priority=1),
+        ExtractionOperation(target="wood", intensity=100, priority=1),
+    ]
+    engine = make_engine(bundle)
+
+    engine._allocate_industrial_workforce()
+
+    expected_population_share = (1 / 3 + 1 / 5) / 2
+    expected_extraction_share = (1 / 3 + 1 / 4) / 2
+    workforce = bundle.industry.workforce
+    assert engine._industrial_population_workforce_share() == pytest.approx(
+        expected_population_share
+    )
+    assert workforce.extraction_target_share == pytest.approx(
+        expected_extraction_share * 100
+    )
+    assert workforce.extraction_required_workers == round(
+        workforce.total_workers * expected_extraction_share
+    )
+    assert workforce.extraction_required_workers < round(
+        workforce.total_workers * (1 / 3 + 1 / 4)
+    )
+
+
+def test_extraction_report_keeps_turn_start_demand_focus() -> None:
+    bundle = make_basic_bundle()
+    bundle.industry.civil_security = 35.5
+    configure_iron_extraction(bundle)
+
+    make_engine(bundle, seed=700).run()
+
+    assert bundle.industry.last_extraction_demand_focus == pytest.approx(0.458)
+    assert "Текущая потребность    ╫ 45.8%" in (
+        bundle.industry.render_extraction_allocation_report()
+    )
+
+
 def test_full_extraction_target_does_not_consume_other_priorities():
     bundle = make_basic_bundle()
     iron = bundle.industry.resource_inventory.resources[ResourceType.IRON]
@@ -169,6 +332,9 @@ def test_extraction_report_preserves_turn_capacity_and_explains_limits():
     )
     assert "╫" in report
     assert "РАСПРЕДЕЛЕНИЕ ДОБЫВАЮЩЕЙ МОЩНОСТИ" in report
+    assert "ЛОГИКА РАСПРЕДЕЛЕНИЯ ДОБЫЧИ" in report
+    assert "Настроенные приоритеты" in report
+    assert "Текущая потребность" in report
     assert "Доля / мощность" in report
     assert "Главные ограничения" in report
     assert "Железо [iron]" in report
@@ -585,6 +751,11 @@ def test_worker_allocations_cannot_exceed_available_pool():
     extracted = bundle.industry.last_extracted[ResourceType.IRON]
     full_extraction = full_pool.industry.last_extracted[ResourceType.IRON]
     assert 0 < extracted < full_extraction
+    workforce = bundle.industry.workforce
+    assert workforce.employed_workers == (
+        workforce.extraction_workers + workforce.production_workers
+    )
+    assert workforce.employed_workers <= workforce.total_workers
 
 
 def test_debt_interest_uses_turn_years_and_credit_increases_debt():

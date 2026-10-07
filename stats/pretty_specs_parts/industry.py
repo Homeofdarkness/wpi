@@ -191,6 +191,16 @@ INDUSTRY_LAYOUT = PrettyLayoutSpec(
             read_only=True,
             getter=lambda model: model.workforce.total_workers,
         ),
+        "industrial_population_target_share": field(
+            "industrial_population_target_share",
+            "Целевая доля населения",
+            decimals=1,
+            suffix="%",
+            read_only=True,
+            getter=lambda model: (
+                model.workforce.industrial_population_target_share
+            ),
+        ),
         "employed_workers": field(
             "employed_workers",
             "Занято",
@@ -211,6 +221,14 @@ INDUSTRY_LAYOUT = PrettyLayoutSpec(
             decimals=0,
             read_only=True,
             getter=lambda model: model.workforce.extraction_workers,
+        ),
+        "extraction_target_share": field(
+            "extraction_target_share",
+            "Целевая доля добычи",
+            decimals=1,
+            suffix="%",
+            read_only=True,
+            getter=lambda model: model.workforce.extraction_target_share,
         ),
         "production_workers": field(
             "production_workers",
@@ -276,17 +294,25 @@ INDUSTRY_LAYOUT = PrettyLayoutSpec(
             )
         ),
         PrettyLineSpec(
-            fields=("total_workers", "employed_workers", "idle_workers")
+            fields=(
+                "total_workers",
+                "industrial_population_target_share",
+                "employed_workers",
+                "idle_workers",
+            ),
+            line_width=170,
+            min_gap=8,
         ),
         PrettyLineSpec(
             fields=(
                 "extraction_workers",
+                "extraction_target_share",
                 "production_workers",
                 "unmet_workers",
                 "labor_coverage",
             ),
-            line_width=170,
-            min_gap=10,
+            line_width=190,
+            min_gap=8,
         ),
         PrettyLineSpec(title="РЕСУРСОДОБЫЧА"),
         PrettyLineSpec(fields=("active_resource_count", "resource_stockpile")),

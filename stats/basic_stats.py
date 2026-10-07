@@ -163,6 +163,12 @@ class IndustrialStats(StatsBase):
         default_factory=list,
         exclude=True,
     )
+    last_extraction_demand_focus: float = pydantic.Field(
+        0.0,
+        ge=0,
+        le=1,
+        exclude=True,
+    )
     last_stock_before: dict[ResourceType, float] = pydantic.Field(
         default_factory=dict,
         exclude=True,
@@ -569,17 +575,41 @@ class IndustrialStats(StatsBase):
                     self._diagnostic_bottlenecks(diagnostic),
                 )
             )
-        return boxed_table(
-            "РАСПРЕДЕЛЕНИЕ ДОБЫВАЮЩЕЙ МОЩНОСТИ",
+        demand_percent = self.last_extraction_demand_focus * 100
+        strategy_percent = 100 - demand_percent
+        return "\n".join(
             (
-                "Направление",
-                "Этап",
-                "Приор. / интенс.",
-                "Доля / мощность",
-                "Добыто",
-                "Главные ограничения",
-            ),
-            rows,
+                boxed_sections(
+                    "ЛОГИКА РАСПРЕДЕЛЕНИЯ ДОБЫЧИ",
+                    (
+                        (
+                            "БАЛАНС",
+                            [
+                                (
+                                    "Настроенные приоритеты",
+                                    f"{strategy_percent:.1f}%",
+                                ),
+                                (
+                                    "Текущая потребность",
+                                    f"{demand_percent:.1f}%",
+                                ),
+                            ],
+                        ),
+                    ),
+                ),
+                boxed_table(
+                    "РАСПРЕДЕЛЕНИЕ ДОБЫВАЮЩЕЙ МОЩНОСТИ",
+                    (
+                        "Направление",
+                        "Этап",
+                        "Приор. / интенс.",
+                        "Доля / мощность",
+                        "Добыто",
+                        "Главные ограничения",
+                    ),
+                    rows,
+                ),
+            )
         )
 
     def _production_resource_flows(
@@ -905,6 +935,19 @@ class IndustrialStats(StatsBase):
 
 
 class InnerPoliticsStats(StatsBase):
+    _forced_user_input_fields = frozenset(
+        {
+            "natural_fertility",
+            "racial_diversity_fertility_influence",
+            "inequality",
+            "polarization",
+            "information_quality",
+            "regional_separatism",
+            "social_mobility",
+            "war_fatigue",
+        }
+    )
+
     state_apparatus_size: int
     state_apparatus_efficiency: int
     knowledge_level: float
@@ -939,6 +982,12 @@ class InnerPoliticsStats(StatsBase):
     grace_of_the_highest: int
     commitment_to_cause: int
     departure_from_truths: int
+    natural_fertility: float = pydantic.Field(100.0, ge=0, le=250)
+    racial_diversity_fertility_influence: float = pydantic.Field(
+        0.0,
+        ge=-1000,
+        le=1000,
+    )
     research_success_chance: float | None = None
     society_decline: float | None = None
     inequality: float = pydantic.Field(25.0, ge=0, le=100)
@@ -988,8 +1037,7 @@ class AgricultureStats(StatsBase):
     agriculture_efficiency: float | None = None
     agriculture_development: float | None = None
     last_workers_count: int = pydantic.Field(0, ge=0, exclude=True)
-    last_territories_count: int = pydantic.Field(0, ge=0, exclude=True)
-    last_workers_per_territory: float = pydantic.Field(
+    last_area_hectares: float = pydantic.Field(
         0.0,
         ge=0,
         exclude=True,

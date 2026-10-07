@@ -29,7 +29,9 @@ from functions.society_models import (
     expected_state_apparatus_size,
     food_diversity_income_factor,
     knowledge_level,
+    natural_fertility_factor,
     population_decrement_factor,
+    racial_diversity_fertility_factor,
     social_decline_income_factor,
     stability_coefficient,
 )
@@ -51,6 +53,7 @@ from stats.industry_components import (
     ExtractionDiagnostic,
     ExtractionGroup,
     IndustrialReadinessReport,
+    IndustrialStage,
 )
 from stats.industry_effects import (
     EffectPhase,
@@ -112,6 +115,7 @@ class TurnEngine:
         self.population_growth_breakdown = None
         self.state.industry.last_effects = []
         self.state.industry.last_readiness = None
+        self.state.industry.last_extraction_demand_focus = 0.0
         economy = self.state.economy
         self._stability_at_turn_start = float(economy.stability)
         self._base_population_growth = float(economy.income or 0.0)
@@ -209,16 +213,30 @@ class TurnEngine:
             politics.knowledge_level,
             politics.education_level,
         )
+        population_share = self._industrial_population_workforce_share()
+        workforce.industrial_population_target_share = population_share * 100.0
         if workforce.auto_size:
-            workforce.specialist_workers = workforce.specialist_capacity
             worker_security = (
                 industry_state.usages[2]
                 if len(industry_state.usages) > 2
                 else 0.0
             )
-            workforce.ordinary_workers = resources.industrial_workers(
+            target_workers = resources.industrial_workers(
                 economy.population_count,
                 worker_security,
+                population_share,
+            )
+            workers_after_forced = max(
+                target_workers - workforce.forced_workers,
+                0,
+            )
+            workforce.specialist_workers = min(
+                workforce.specialist_capacity,
+                workers_after_forced,
+            )
+            workforce.ordinary_workers = max(
+                workers_after_forced - workforce.specialist_workers,
+                0,
             )
         population_millions = max(economy.population_count / 1_000_000, 0.1)
         healthcare = economy.med_wastes[1] / population_millions
@@ -241,26 +259,62 @@ class TurnEngine:
         self._allocate_industrial_workforce()
 
     def _extraction_workers_required(self) -> int:
-        """Estimate labour needed by all active extraction directions."""
-        required = 0
-        state = self.state.industry
+        """Return the stage-weighted target workforce for extraction."""
+        workforce = self.state.industry.workforce
+        target_share = self._extraction_workforce_share()
+        workforce.extraction_target_share = target_share * 100.0
+        return max(round(workforce.total_workers * target_share), 0)
+
+    def _extraction_workforce_share(self) -> float:
+        """Blend extraction shares by actual stage capacity."""
+        return self._capacity_weighted_stage_share(
+            resources.INDUSTRIAL_STAGE_EXTRACTION_SHARES,
+            fallback=0.0,
+        )
+
+    def _industrial_population_workforce_share(self) -> float:
+        """Blend population shares by actual stage capacity."""
+        return self._capacity_weighted_stage_share(
+            resources.INDUSTRIAL_STAGE_POPULATION_SHARES,
+            fallback=resources.INDUSTRIAL_STAGE_POPULATION_SHARES[
+                IndustrialStage.MACHINE
+            ],
+        )
+
+    def _capacity_weighted_stage_share(
+        self,
+        stage_shares: dict[IndustrialStage, float],
+        *,
+        fallback: float,
+    ) -> float:
+        """Blend one stage ratio by actual extraction capacity.
+
+        Capacity weights account for priorities, intensities and current
+        demand.  Resources inside one group are weighted exactly like their
+        expected extraction output.  This makes a mixed industrial base use
+        one bounded share instead of adding several stage quotas together.
+        """
+        capacities = self._extraction_capacities()
+        total_capacity = sum(capacities.values())
+        if total_capacity <= 0:
+            return fallback
+
+        weighted_share = 0.0
         for operation in self._active_extraction_operations():
-            target_states = self._extraction_targets(operation)
-            if not target_states:
+            operation_capacity = capacities.get(operation.target_key, 0.0)
+            if operation_capacity <= 0:
                 continue
-            group, _ = state.resolve_extraction_target(operation)
-            labor_dependency = sum(
-                resources.INDUSTRIAL_STAGE_PROFILES[
-                    item.stage
-                ].labor_dependency
-                for item in target_states
-            ) / len(target_states)
-            required += resources.extraction_workers_required(
-                resources.GROUP_PROFILES[group],
-                operation.intensity,
-                labor_dependency,
+            target_states = self._extraction_targets(operation)
+            stage_share = sum(
+                resource_share * stage_shares[item.stage]
+                for item, resource_share in zip(
+                    target_states,
+                    self._extraction_shares(target_states),
+                    strict=True,
+                )
             )
-        return required
+            weighted_share += operation_capacity / total_capacity * stage_share
+        return min(max(weighted_share, 0.0), 1.0)
 
     def _production_workers_required(self) -> int:
         """Estimate labour needed by requested production for this turn."""
@@ -287,9 +341,16 @@ class TurnEngine:
         )
         extraction_workers = round(extraction_required * coverage)
         production_workers = round(production_required * coverage)
-        employed = min(
-            extraction_workers + production_workers, total_available
+        rounding_overflow = max(
+            extraction_workers + production_workers - total_available,
+            0,
         )
+        if rounding_overflow:
+            production_workers = max(
+                production_workers - rounding_overflow,
+                0,
+            )
+        employed = extraction_workers + production_workers
         workforce.extraction_required_workers = extraction_required
         workforce.production_required_workers = production_required
         workforce.extraction_workers = extraction_workers
@@ -371,6 +432,14 @@ class TurnEngine:
         total_allocation_weight = sum(allocation_weights.values())
         if total_allocation_weight <= 0:
             return {}
+        demand_weights = {
+            operation.target_key: self._extraction_operation_need(operation)
+            for operation in operations
+        }
+        total_demand_weight = sum(demand_weights.values())
+        demand_focus = resources.extraction_demand_focus(
+            self._resource_coverage
+        )
         extraction_spending = self.rules.get_resource_extraction_budget(
             self._ctx()
         )
@@ -380,11 +449,43 @@ class TurnEngine:
         return {
             operation.target_key: (
                 national_capacity
-                * allocation_weights[operation.target_key]
-                / total_allocation_weight
+                * (
+                    (1.0 - demand_focus)
+                    * allocation_weights[operation.target_key]
+                    / total_allocation_weight
+                    + demand_focus
+                    * (
+                        demand_weights[operation.target_key]
+                        / total_demand_weight
+                        if total_demand_weight > 0
+                        else allocation_weights[operation.target_key]
+                        / total_allocation_weight
+                    )
+                )
             )
             for operation in operations
         }
+
+    def _extraction_operation_need(self, operation) -> float:
+        """Return direct and production input need for one operation."""
+        production_needs = {}
+        for rule in self.state.industry.production_rules:
+            if not rule.enabled:
+                continue
+            batches = self.calendar.scale_flow(rule.batches)
+            for resource, amount in rule.inputs.items():
+                production_needs[resource] = (
+                    production_needs.get(resource, 0.0) + amount * batches
+                )
+        return sum(
+            max(
+                self._turn_resource_demands.get(item.resource, 0.0)
+                + production_needs.get(item.resource, 0.0)
+                - item.stockpile,
+                0.0,
+            )
+            for item in self._extraction_targets(operation)
+        )
 
     def _active_extraction_operations(self):
         return [
@@ -666,20 +767,16 @@ class TurnEngine:
         self,
         results: CalculationResults,
     ) -> None:
-        """Derive fertilizer and tool demand from workers and territories."""
+        """Derive cultivated area plus fertilizer and tool resource demand."""
         agriculture_state = self.state.agriculture
-        territories = max(self.state.inner_politics.provinces_count, 1)
         workers = results.workers_count
-        density = agriculture.workers_per_territory(workers, territories)
         fertilizer_monthly, tools_monthly = (
-            agriculture.agricultural_input_demand_per_month(
-                workers,
-                territories,
-            )
+            agriculture.agricultural_input_demand_per_month(workers)
         )
         agriculture_state.last_workers_count = workers
-        agriculture_state.last_territories_count = territories
-        agriculture_state.last_workers_per_territory = density
+        agriculture_state.last_area_hectares = (
+            agriculture.agricultural_area_hectares(workers)
+        )
         agriculture_state.last_fertilizer_demand = (
             fertilizer_monthly * self.calendar.months
         )
@@ -735,6 +832,10 @@ class TurnEngine:
         )
         contentment_factor = results.contentment_coefficient_1
         child_policy_factor = 0.015 * politics.many_children_propoganda + 1
+        fertility_factor = natural_fertility_factor(politics.natural_fertility)
+        diversity_fertility_factor = racial_diversity_fertility_factor(
+            politics.racial_diversity_fertility_influence
+        )
         food_security_factor = agriculture_income_factor(
             agriculture_state.food_security
         )
@@ -749,6 +850,8 @@ class TurnEngine:
             stability_factor,
             contentment_factor,
             child_policy_factor,
+            fertility_factor,
+            diversity_fertility_factor,
             food_security_factor,
             social_decline_factor,
             food_diversity_factor,
@@ -788,6 +891,8 @@ class TurnEngine:
             stability_factor=stability_factor,
             contentment_factor=contentment_factor,
             child_policy_factor=child_policy_factor,
+            natural_fertility_factor=fertility_factor,
+            racial_diversity_fertility_factor=diversity_fertility_factor,
             food_security_factor=food_security_factor,
             social_decline_factor=social_decline_factor,
             food_diversity_factor=food_diversity_factor,
@@ -1007,6 +1112,9 @@ class TurnEngine:
         state = self.state.industry
         operational = self.state.probabilities
         state.last_extracted = {}
+        state.last_extraction_demand_focus = resources.extraction_demand_focus(
+            self._resource_coverage
+        )
         diagnostics: dict[str, dict] = {
             operation.target_key: {
                 "operation": operation,

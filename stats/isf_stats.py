@@ -29,6 +29,19 @@ class IsfAgricultureStats(AgricultureStats):
 
 
 class IsfInnerPoliticsStats(StatsBase):
+    _forced_user_input_fields = frozenset(
+        {
+            "natural_fertility",
+            "racial_diversity_fertility_influence",
+            "inequality",
+            "polarization",
+            "information_quality",
+            "regional_separatism",
+            "social_mobility",
+            "war_fatigue",
+        }
+    )
+
     state_apparatus_size: int = pydantic.Field(..., ge=0, le=400)
     state_apparatus_efficiency: int = pydantic.Field(..., ge=0, le=200)
     knowledge_level: int = pydantic.Field(..., ge=0, le=100)
@@ -65,6 +78,12 @@ class IsfInnerPoliticsStats(StatsBase):
     commitment_to_cause: int = pydantic.Field(..., ge=0, le=100)
     departure_from_truths: int = pydantic.Field(..., ge=0, le=100)
     separatism_of_the_highest: int = pydantic.Field(..., ge=0, le=100)
+    natural_fertility: float = pydantic.Field(100.0, ge=0, le=250)
+    racial_diversity_fertility_influence: float = pydantic.Field(
+        0.0,
+        ge=-1000,
+        le=1000,
+    )
 
     @pydantic.model_validator(mode="after")
     def check_control_sum(self) -> "IsfInnerPoliticsStats":

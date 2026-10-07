@@ -112,6 +112,7 @@ def test_agricultural_security_moves_slowly_and_respects_worker_floor() -> (
 def test_balanced_customer_configuration_resolves_full_turn() -> None:
     country = _balanced_country()
     stability_before = country.economy.stability
+    population_before = country.economy.population_count
     engine = TurnEngine(
         state=country,
         io=TestIO(),
@@ -130,7 +131,7 @@ def test_balanced_customer_configuration_resolves_full_turn() -> None:
     assert sum(value == 0 for value in deficits) >= 6
     assert sum(0 < value < 0.5 for value in deficits) >= 3
     assert sum(value >= 0.5 for value in deficits) >= 3
-    assert 65 <= engine._resource_coverage <= 85
+    assert 80 <= engine._resource_coverage <= 90
 
     assert (
         industry.resource_inventory.resources[
@@ -154,6 +155,14 @@ def test_balanced_customer_configuration_resolves_full_turn() -> None:
     )
 
     workforce = industry.workforce
+    assert workforce.industrial_population_target_share == pytest.approx(
+        100 / 3
+    )
+    assert workforce.total_workers == round(population_before / 3)
+    assert workforce.extraction_target_share == pytest.approx(100 / 3)
+    assert workforce.extraction_required_workers == round(
+        workforce.total_workers / 3
+    )
     assert workforce.employed_workers == (
         workforce.extraction_workers + workforce.production_workers
     )
@@ -161,8 +170,10 @@ def test_balanced_customer_configuration_resolves_full_turn() -> None:
         workforce.employed_workers + workforce.idle_workers
     )
     assert agriculture.last_workers_count == 123_456
-    assert agriculture.last_territories_count == 106
-    assert agriculture.securities[1] > 58
+    assert agriculture.last_area_hectares == 246_912
+    assert agriculture.last_fertilizer_demand == pytest.approx(740.736)
+    assert agriculture.last_tools_demand == pytest.approx(370.368)
+    assert agriculture.securities[1] < 58
     assert agriculture.securities[2] < 58
     assert country.economy.stability == stability_before
     assert sum(

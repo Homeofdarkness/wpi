@@ -14,9 +14,9 @@ from stats.industry_components import ExtractionGroup, IndustrialStage
 # template: abundant resources are covered, while rare/low-quality deposits
 # remain genuine bottlenecks instead of every material being scarce at once.
 EXTRACTION_UNITS_PER_SPENDING = 900.0
-INDUSTRIAL_WORKFORCE_SHARE = 0.18
 PRODUCTION_WORKERS_PER_UNIT = 250.0
-EXTRACTION_LABOR_SATURATION = 3.0
+BASE_DEMAND_ALLOCATION_SHARE = 0.20
+SHORTAGE_RESPONSE_ALLOCATION_SHARE = 0.40
 
 
 @dataclass(frozen=True)
@@ -36,11 +36,32 @@ class IndustrialStageProfile:
 
 
 INDUSTRIAL_STAGE_PROFILES: dict[IndustrialStage, IndustrialStageProfile] = {
-    IndustrialStage.MANUAL: IndustrialStageProfile(0.55, 1.35, 0.15),
+    IndustrialStage.MANUAL: IndustrialStageProfile(0.55, 1.15, 0.15),
     IndustrialStage.STEAM: IndustrialStageProfile(0.78, 1.15, 0.35),
     IndustrialStage.MACHINE: IndustrialStageProfile(1.00, 1.00, 0.60),
     IndustrialStage.ELECTRIFIED: IndustrialStageProfile(1.18, 0.82, 0.82),
     IndustrialStage.MASS_PRODUCTION: IndustrialStageProfile(1.35, 0.68, 1.00),
+}
+
+# Target share of the country's population available to all industry when the
+# corresponding stage supplies all extraction capacity. Worker security then
+# scales the resulting pool.
+INDUSTRIAL_STAGE_POPULATION_SHARES: dict[IndustrialStage, float] = {
+    IndustrialStage.MANUAL: 1 / 3,
+    IndustrialStage.STEAM: 1 / 3,
+    IndustrialStage.MACHINE: 1 / 4,
+    IndustrialStage.ELECTRIFIED: 1 / 5,
+    IndustrialStage.MASS_PRODUCTION: 1 / 5,
+}
+
+# Target share of the available industrial pool directed to extraction. Mixed
+# configurations use one capacity-weighted average; quotas are never added.
+INDUSTRIAL_STAGE_EXTRACTION_SHARES: dict[IndustrialStage, float] = {
+    IndustrialStage.MANUAL: 1 / 3,
+    IndustrialStage.STEAM: 1 / 3,
+    IndustrialStage.MACHINE: 1 / 4,
+    IndustrialStage.ELECTRIFIED: 1 / 4,
+    IndustrialStage.MASS_PRODUCTION: 1 / 5,
 }
 
 
@@ -72,27 +93,11 @@ GROUP_PROFILES: dict[ExtractionGroup, ExtractionGroupProfile] = {
 def industrial_workers(
     population: int,
     worker_security: float,
-    workforce_share: float = INDUSTRIAL_WORKFORCE_SHARE,
+    workforce_share: float,
 ) -> int:
     """Return workers available to extraction and industrial production."""
     security = min(max(float(worker_security) / 100.0, 0.0), 1.0)
     return max(round(max(population, 0) * workforce_share * security), 0)
-
-
-def extraction_workers_required(
-    profile: ExtractionGroupProfile,
-    intensity: float,
-    labor_dependency: float,
-) -> int:
-    """Workers needed to bring an extraction direction near saturation."""
-    intensity_factor = min(max(float(intensity) / 100.0, 0.0), 1.0)
-    required = (
-        profile.labor_scale
-        * EXTRACTION_LABOR_SATURATION
-        * intensity_factor
-        * max(float(labor_dependency), 0.0)
-    )
-    return max(round(required), 0)
 
 
 def production_workers_required(material_throughput: float) -> int:
@@ -147,6 +152,21 @@ def extraction_allocation_weight(
     return (
         extraction_priority_weight(priority, lowest_priority)
         * intensity_factor
+    )
+
+
+def extraction_demand_focus(resource_coverage: float) -> float:
+    """Return the share of capacity redirected toward current demand.
+
+    Strategic priority always controls at least 40% of capacity. A country
+    that was fully supplied uses a modest 20% demand correction, while a
+    country in a severe shortage can raise it to 60%. This keeps priorities
+    meaningful without continuing to fill low-demand stockpiles while key
+    inputs are missing.
+    """
+    coverage = min(max(float(resource_coverage), 0.0), 100.0) / 100.0
+    return BASE_DEMAND_ALLOCATION_SHARE + (
+        SHORTAGE_RESPONSE_ALLOCATION_SHARE * (1.0 - coverage)
     )
 
 

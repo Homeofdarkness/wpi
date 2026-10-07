@@ -92,6 +92,19 @@ def test_population_growth_is_applied_and_remains_integer():
     )
 
 
+def test_population_growth_uses_natural_fertility_and_vrrf() -> None:
+    bundle = make_basic_bundle()
+    bundle.inner_politics.natural_fertility = 150
+    bundle.inner_politics.racial_diversity_fertility_influence = 200
+
+    report = engine_for(bundle).run()
+    growth = report.population_growth
+
+    assert growth is not None
+    assert growth.natural_fertility_factor == pytest.approx(1.5)
+    assert growth.racial_diversity_fertility_factor == pytest.approx(1.2)
+
+
 def test_full_inflation_does_not_erase_expenses():
     bundle = make_basic_bundle()
     bundle.economy.inflation = 100

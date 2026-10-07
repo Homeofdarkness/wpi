@@ -3,8 +3,17 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from functions.agriculture_models import food_diversity, food_security_index
-from functions.society_models import food_diversity_income_factor
+from functions.agriculture_models import (
+    agricultural_area_hectares,
+    agricultural_input_demand_per_month,
+    food_diversity,
+    food_security_index,
+)
+from functions.society_models import (
+    food_diversity_income_factor,
+    natural_fertility_factor,
+    racial_diversity_fertility_factor,
+)
 from modules.run_skip_move import TurnEngine
 from modules.skip_move_types import WorldState
 from tests.factories import make_basic_bundle
@@ -44,6 +53,24 @@ def test_food_diversity_is_bounded_and_its_growth_effect_is_monotonic() -> (
     factors = [food_diversity_income_factor(value) for value in (0, 50, 100)]
     assert factors == sorted(factors)
     assert factors[0] > 0
+
+
+def test_agricultural_area_and_inputs_follow_customer_rule() -> None:
+    workers = 42_000
+
+    assert agricultural_area_hectares(workers) == 84_000
+    fertilizers, tools = agricultural_input_demand_per_month(workers)
+    assert fertilizers == pytest.approx(84.0)
+    assert tools == pytest.approx(42.0)
+
+
+def test_fertility_factors_use_documented_percentage_scales() -> None:
+    assert natural_fertility_factor(0) == 0
+    assert natural_fertility_factor(100) == 1
+    assert natural_fertility_factor(250) == 2.5
+    assert racial_diversity_fertility_factor(-1000) == 0
+    assert racial_diversity_fertility_factor(200) == pytest.approx(1.2)
+    assert racial_diversity_fertility_factor(1000) == 2
 
 
 def test_food_supplies_cover_a_shortage_before_hunger() -> None:

@@ -144,29 +144,61 @@ BASIC_INNER_LAYOUT = PrettyLayoutSpec(
         "departure_from_truths": field(
             "departure_from_truths", "Отхождение от истин", decimals=0
         ),
+        "natural_fertility": field(
+            "natural_fertility",
+            "Естественная фертильность",
+            decimals=1,
+            suffix="%",
+            default=100.0,
+        ),
+        "racial_diversity_fertility_influence": field(
+            "racial_diversity_fertility_influence",
+            "ВРРФ",
+            decimals=1,
+            default=0.0,
+            aliases=("Влияние расового разнообразия на фертильность",),
+        ),
         "inequality": field(
-            "inequality", "Неравенство", decimals=1, suffix="%"
+            "inequality",
+            "Неравенство",
+            decimals=1,
+            suffix="%",
+            default=25.0,
         ),
         "polarization": field(
-            "polarization", "Поляризация", decimals=1, suffix="%"
+            "polarization",
+            "Поляризация",
+            decimals=1,
+            suffix="%",
+            default=20.0,
         ),
         "information_quality": field(
             "information_quality",
             "Качество информации",
             decimals=1,
             suffix="%",
+            default=60.0,
         ),
         "regional_separatism": field(
             "regional_separatism",
             "Региональный сепаратизм",
             decimals=1,
             suffix="%",
+            default=0.0,
         ),
         "social_mobility": field(
-            "social_mobility", "Социальная мобильность", decimals=1, suffix="%"
+            "social_mobility",
+            "Социальная мобильность",
+            decimals=1,
+            suffix="%",
+            default=50.0,
         ),
         "war_fatigue": field(
-            "war_fatigue", "Усталость от войны", decimals=1, suffix="%"
+            "war_fatigue",
+            "Усталость от войны",
+            decimals=1,
+            suffix="%",
+            default=0.0,
         ),
     },
     lines=(
@@ -235,6 +267,12 @@ BASIC_INNER_LAYOUT = PrettyLayoutSpec(
                 "grace_of_the_highest",
                 "commitment_to_cause",
                 "departure_from_truths",
+            )
+        ),
+        PrettyLineSpec(
+            fields=(
+                "natural_fertility",
+                "racial_diversity_fertility_influence",
             )
         ),
         PrettyLineSpec(title="ОБЩЕСТВЕННАЯ ДИНАМИКА"),
@@ -354,6 +392,12 @@ ATTERIUM_INNER_LAYOUT = PrettyLayoutSpec(
         ),
         PrettyLineSpec(
             fields=("commitment_to_cause", "departure_from_truths")
+        ),
+        PrettyLineSpec(
+            fields=(
+                "natural_fertility",
+                "racial_diversity_fertility_influence",
+            )
         ),
         PrettyLineSpec(title="ОБЩЕСТВЕННАЯ ДИНАМИКА"),
         PrettyLineSpec(
@@ -481,6 +525,12 @@ ISF_INNER_LAYOUT = PrettyLayoutSpec(
         ),
         PrettyLineSpec(
             fields=("departure_from_truths", "separatism_of_the_highest")
+        ),
+        PrettyLineSpec(
+            fields=(
+                "natural_fertility",
+                "racial_diversity_fertility_influence",
+            )
         ),
         PrettyLineSpec(title="ОБЩЕСТВЕННАЯ ДИНАМИКА"),
         PrettyLineSpec(

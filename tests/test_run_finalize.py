@@ -83,6 +83,8 @@ def test_population_report_explains_every_growth_factor() -> None:
     assert "Коэффициент стабильности" in output
     assert "Коэффициент довольства" in output
     assert "Коэффициент многодетности" in output
+    assert "Естественная фертильность" in output
+    assert "Влияние расового разнообразия" in output
     assert "Коэффициент продовольствия" in output
     assert "Коэффициент упадка общества" in output
     assert "Коэффициент разнообразия" in output

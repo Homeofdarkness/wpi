@@ -11,10 +11,10 @@ from functions.inbuilt import parabola, safe_div, sigmoid, tanh
 
 
 WORKERS_PER_FOOD_UNIT = 550.0
-FERTILIZER_BASE_PER_TERRITORY = 0.35
-FERTILIZER_WORKERS_DIVISOR = 40_000.0
-TOOLS_BASE_PER_TERRITORY = 0.10
-TOOLS_WORKERS_DIVISOR = 2_500.0
+AGRICULTURAL_WORKERS_PER_BLOCK = 5.0
+HECTARES_PER_AGRICULTURAL_BLOCK = 10.0
+TOOLS_PER_AGRICULTURAL_BLOCK_PER_MONTH = 0.005
+FERTILIZERS_PER_AGRICULTURAL_BLOCK_PER_MONTH = 0.01
 
 
 def additional_waste_per_worker(security_percent: float) -> float:
@@ -77,24 +77,27 @@ def workers_count(
     return 0
 
 
-def workers_per_territory(workers: int, territories: int) -> float:
-    """Return the agricultural workforce density used by supply demand."""
-    return max(int(workers), 0) / max(int(territories), 1)
+def agricultural_area_hectares(workers: int) -> float:
+    """Return cultivated area using the gameplay rule 5 workers = 10 ha."""
+    workforce = max(int(workers), 0)
+    return (
+        workforce
+        / AGRICULTURAL_WORKERS_PER_BLOCK
+        * HECTARES_PER_AGRICULTURAL_BLOCK
+    )
 
 
 def agricultural_input_demand_per_month(
     workers: int,
-    territories: int,
 ) -> tuple[float, float]:
-    """Monthly fertilizer and tool demand in abstract resource units."""
-    safe_territories = max(int(territories), 1)
-    density = workers_per_territory(workers, safe_territories)
-    fertilizers = safe_territories * (
-        FERTILIZER_BASE_PER_TERRITORY + density / FERTILIZER_WORKERS_DIVISOR
-    )
-    tools = safe_territories * (
-        TOOLS_BASE_PER_TERRITORY + density / TOOLS_WORKERS_DIVISOR
-    )
+    """Return monthly fertilizer and tool demand from workforce blocks.
+
+    Each five agricultural workers cultivate ten hectares and require 0.01
+    units of fertilizers plus 0.005 units of tools every month.
+    """
+    blocks = max(int(workers), 0) / AGRICULTURAL_WORKERS_PER_BLOCK
+    fertilizers = blocks * FERTILIZERS_PER_AGRICULTURAL_BLOCK_PER_MONTH
+    tools = blocks * TOOLS_PER_AGRICULTURAL_BLOCK_PER_MONTH
     return fertilizers, tools
 
 

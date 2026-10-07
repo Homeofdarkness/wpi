@@ -93,6 +93,8 @@ class PopulationGrowthBreakdown:
     stability_factor: float
     contentment_factor: float
     child_policy_factor: float
+    natural_fertility_factor: float
+    racial_diversity_fertility_factor: float
     food_security_factor: float
     social_decline_factor: float
     food_diversity_factor: float
@@ -108,6 +110,8 @@ class PopulationGrowthBreakdown:
             * self.stability_factor
             * self.contentment_factor
             * self.child_policy_factor
+            * self.natural_fertility_factor
+            * self.racial_diversity_fertility_factor
             * self.food_security_factor
             * self.social_decline_factor
             * self.food_diversity_factor

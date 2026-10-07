@@ -39,7 +39,7 @@ def test_file_creator_reads_answers_and_human_industry_configuration():
     answers, configuration = read_source(FIXTURE)
     country = create_basic_country(FIXTURE)
 
-    assert len(answers) == 81
+    assert len(answers) == 89
     assert configuration is not None
     assert country.industry.active_resource_count() == 13
     assert country.industry.workforce.auto_size
@@ -58,6 +58,10 @@ def test_file_creator_reads_answers_and_human_industry_configuration():
     assert 'targets = ["logistic", "trade_efficiency"]' in source
     assert "population_epidemic_chance" in source
     assert len(country.industry.effects) == 4
+    assert country.inner_politics.natural_fertility == 100
+    assert country.inner_politics.racial_diversity_fertility_influence == 0
+    assert country.inner_politics.inequality == 25
+    assert country.inner_politics.information_quality == 60
     assert (
         country.industry.resource_inventory.resources[
             ResourceType.WOOD
