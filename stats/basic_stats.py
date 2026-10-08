@@ -177,6 +177,14 @@ class IndustrialStats(StatsBase):
         default_factory=dict,
         exclude=True,
     )
+    last_trade_imported: dict[ResourceType, float] = pydantic.Field(
+        default_factory=dict,
+        exclude=True,
+    )
+    last_trade_exported: dict[ResourceType, float] = pydantic.Field(
+        default_factory=dict,
+        exclude=True,
+    )
     last_turn_calculated: bool = pydantic.Field(False, exclude=True)
     last_readiness: IndustrialReadinessReport | None = pydantic.Field(
         None,
@@ -650,12 +658,17 @@ class IndustrialStats(StatsBase):
                 resource, 0.0
             ) - production_inputs.get(resource, 0.0)
             consumed = self.last_resource_consumed.get(resource, 0.0)
+            imported = self.last_trade_imported.get(resource, 0.0)
+            exported = self.last_trade_exported.get(resource, 0.0)
+            trade_net = imported - exported
             delta = state.stockpile - before
             storage_loss = max(
                 before
+                + imported
                 + extracted
                 + production_net
                 - consumed
+                - exported
                 - state.stockpile,
                 0.0,
             )
@@ -665,6 +678,7 @@ class IndustrialStats(StatsBase):
                     _STAGE_LABELS[state.stage],
                     f"{extracted:.1f}",
                     self._signed_resource_amount(production_net),
+                    self._signed_resource_amount(trade_net),
                     f"{consumed:.1f}",
                     f"{storage_loss:.1f}",
                     self._signed_resource_amount(delta),
@@ -683,6 +697,7 @@ class IndustrialStats(StatsBase):
                 "Этап",
                 "Добыто",
                 "Перераб.",
+                "Торговля",
                 "Потребл.",
                 "Хран.потери",
                 "Склад Δ",
@@ -1025,7 +1040,7 @@ class AgricultureStats(StatsBase):
     agriculture_deceases: float
     agriculture_natural_deceases: float
     income_from_resources: float
-    overstock_percent: float
+    overstock_percent: float = pydantic.Field(..., ge=0, le=100)
 
     # Semi-dynamic param
     food_supplies: float = 0

@@ -50,6 +50,7 @@ def render_budget_report(report: SkipMoveReport) -> str:
         ("Доход промышленности", report.industry_income),
         ("Доход науки", report.science_income),
         ("Баланс ресурсов", report.resource_balance),
+        ("Баланс настроенных сделок", report.trade_deal_balance),
         ("Валовые доходы", ledger.gross_income),
         ("Доходы после модификаторов", ledger.effective_income),
     ]
@@ -166,16 +167,51 @@ def render_population_growth_report(report: SkipMoveReport) -> str:
         "ОТЧЁТ ПРИРОСТА НАСЕЛЕНИЯ "
         f"({format_months(growth.turn_months, uppercase=True)})"
     )
-    return _boxed_report(
-        title,
+    sections: list[tuple[str, list[tuple[str, str]]]] = [
+        ("ОСНОВА", number_lines),
+    ]
+    requisition = report.food_requisition
+    if requisition is not None:
+        requisition_lines = [
+            (
+                "Обеспеченность до изъятия",
+                f"{requisition.food_security_before:.1f}%",
+            ),
+            ("Настройка изъятия", f"{requisition.policy_percent:.1f}%"),
+            (
+                "Изъято в государственные запасы",
+                f"{requisition.amount:.1f} ед.рес.",
+            ),
+            (
+                "Изъятая доля потребления",
+                f"{requisition.consumption_share:.1f}%",
+            ),
+            (
+                "Обеспеченность после изъятия",
+                f"{requisition.food_security_after:.1f}%",
+            ),
+            (
+                "Довольство только на этот ход",
+                f"-{requisition.contentment_penalty:.1f} п.п.",
+            ),
+            (
+                "Доверие только на этот ход",
+                f"-{requisition.government_trust_penalty:.1f} п.п.",
+            ),
+        ]
+        sections.append(("ПРОДОВОЛЬСТВЕННОЕ ИЗЪЯТИЕ", requisition_lines))
+    sections.extend(
         (
-            ("ОСНОВА", number_lines),
             (
                 "КОЭФФИЦИЕНТЫ",
                 [(label, f"×{value:.4f}") for label, value in factor_lines],
             ),
             ("ИТОГ", result_lines),
-        ),
+        )
+    )
+    return _boxed_report(
+        title,
+        tuple(sections),
     )
 
 
@@ -208,3 +244,16 @@ def print_final_state(state: WorldState) -> None:
     print(next_turn_configuration)
     logger.info(industry_report)
     logger.info(next_turn_configuration)
+    if state.trade.deals:
+        # The interactive runner always resolves one default-duration turn.
+        # Avoid persisting a hidden calendar field in WorldState.
+        from functions.time_models import TURN_MONTHS
+
+        trade_report = state.trade.render_turn_report(TURN_MONTHS)
+        next_trade_configuration = state.trade.render_configuration()
+        print("\nОтдельный отчёт торговли -")
+        print(trade_report)
+        print("\nTOML торговли для следующего хода -")
+        print(next_trade_configuration)
+        logger.info(trade_report)
+        logger.info(next_trade_configuration)

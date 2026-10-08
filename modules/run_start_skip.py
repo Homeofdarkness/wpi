@@ -8,6 +8,7 @@ from enum import StrEnum
 
 from modules.skip_move_types import WorldState
 from stats.stats_base import StatsBase
+from stats.trade_text import parse_trade_configuration
 
 
 class InputMode(StrEnum):
@@ -29,6 +30,7 @@ SKIPPER_SECTIONS = {
     "industry_configuration": "=== TOML ПРОМЫШЛЕННОСТИ ===",
     "agriculture": "=== СЕЛЬСКОЕ ХОЗЯЙСТВО ===",
     "government": "=== ГОСУДАРСТВО, КОНТРОЛЬ И НАРОД ===",
+    "trade_configuration": "=== TOML ТОРГОВЛИ (НЕОБЯЗАТЕЛЬНО) ===",
 }
 
 CREATOR_HEADERS = {
@@ -138,6 +140,7 @@ class StatsInput:
     config: StatsConfig
     mode: InputMode | None = None
     industry_configuration: str | None | object = _INDUSTRY_CONFIGURATION_UNSET
+    trade_configuration: str | None = None
 
     def read(self) -> WorldState:
         mode = self.mode or select_input_mode()
@@ -164,7 +167,7 @@ class StatsInput:
                 f"{industry.render_pretty()}\n"
                 f"{self._normalize_industry_configuration(configuration)}"
             )
-        return WorldState(
+        state = WorldState(
             economy=economy,
             industry=industry,
             agriculture=self.config.agriculture_class.from_user_input(
@@ -174,6 +177,12 @@ class StatsInput:
                 CREATOR_HEADERS["inner_politics"]
             ),
         )
+        if self.trade_configuration:
+            state.trade = parse_trade_configuration(
+                self.trade_configuration,
+                state.industry,
+            )
+        return state
 
     @staticmethod
     def _normalize_industry_configuration(configuration: str) -> str:
@@ -220,7 +229,11 @@ class StatsInput:
                 terminator=None,
                 completion_check=(
                     (lambda _: False)
-                    if name == "industry_configuration"
+                    if name
+                    in {
+                        "industry_configuration",
+                        "trade_configuration",
+                    }
                     else lambda text, section=name: (
                         _skipper_section_is_complete(section, text)
                     )
@@ -232,7 +245,7 @@ class StatsInput:
                 "Не вставлены отдельные настройки промышленности. "
                 "Используйте файл *_industry_settings.toml"
             )
-        return WorldState(
+        state = WorldState(
             economy=self.config.economy_class.from_stats_text(
                 sections["economy"]
             ),
@@ -247,6 +260,13 @@ class StatsInput:
                 sections["government"]
             ),
         )
+        trade_configuration = sections["trade_configuration"].strip()
+        if trade_configuration:
+            state.trade = parse_trade_configuration(
+                self._normalize_industry_configuration(trade_configuration),
+                state.industry,
+            )
+        return state
 
 
 def make_start_skip_move(config: StatsConfig) -> StatsInput:

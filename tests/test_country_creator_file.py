@@ -33,6 +33,9 @@ SETTINGS_EXAMPLE = (
     / "test_files"
     / "edem_country_industry_settings_example.toml"
 )
+TRADE_EXAMPLE = (
+    Path(__file__).parents[1] / "test_files" / "trade_settings_example.toml"
+)
 
 
 def test_file_creator_reads_answers_and_human_industry_configuration():
@@ -194,6 +197,42 @@ def test_creator_cli_can_run_a_real_turn_and_show_effect_results(
     assert "ожидает расчёта хода" not in country_text
     assert f"months = {36 - TURN_MONTHS}" in settings_text
     assert "Рассчитано ходов: 1" in console
+
+
+def test_creator_cli_runs_and_preserves_optional_trade_toml(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    output = tmp_path / "country_with_trade.txt"
+    trade_output = tmp_path / "next_trade.toml"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "create_basic_country.py",
+            str(FIXTURE),
+            "--output",
+            str(output),
+            "--trade-settings",
+            str(TRADE_EXAMPLE),
+            "--trade-settings-output",
+            str(trade_output),
+            "--turns",
+            "1",
+            "--seed",
+            "1",
+        ],
+    )
+
+    create_country_main()
+
+    output_text = output.read_text(encoding="utf-8")
+    trade_text = trade_output.read_text(encoding="utf-8")
+    assert "ТОРГОВЫЕ СДЕЛКИ (3 МЕСЯЦА)" in output_text
+    assert "water_for_copper · ИМПОРТ" in output_text
+    assert "oil_export · ЭКСПОРТ" in output_text
+    assert "Баланс настроенных сделок" in output_text
+    assert 'id = "construction_purchase"' in trade_text
+    assert "country =" not in trade_text
 
 
 def test_creator_rejects_negative_turn_count(monkeypatch) -> None:

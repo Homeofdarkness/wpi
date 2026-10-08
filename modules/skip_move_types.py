@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from stats.probability_stats import ProbabilityStats
+from stats.trade_components import TradeState
 
 
 @dataclass
@@ -17,6 +18,7 @@ class WorldState:
     agriculture: Any
     inner_politics: Any
     probabilities: ProbabilityStats = field(default_factory=ProbabilityStats)
+    trade: TradeState = field(default_factory=TradeState)
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,7 @@ class TurnLedger:
     industry_income: float
     science_income: float
     resource_balance: float
+    trade_deal_balance: float
     debt_interest: float
     resource_effect_wastes: float
     total_wastes: float
@@ -45,6 +48,7 @@ class TurnLedger:
             + self.industry_income
             + self.science_income
             + self.resource_balance
+            + self.trade_deal_balance
         )
 
     @property
@@ -69,6 +73,19 @@ class LogisticParams:
     contentment_spotter: float = 0.0
 
 
+@dataclass(frozen=True)
+class FoodRequisitionBreakdown:
+    """Temporary social and food effects of forced reserve formation."""
+
+    policy_percent: float
+    food_security_before: float
+    food_security_after: float
+    consumption_share: float
+    amount: float
+    contentment_penalty: float
+    government_trust_penalty: float
+
+
 @dataclass
 class CalculationResults:
     logistic_params: LogisticParams
@@ -78,6 +95,10 @@ class CalculationResults:
     expected_infrastructure_waste: float
     workers_count: int
     food_balance: float = 0.0
+    food_consumed: float = 0.0
+    requisition_contentment_penalty: float = 0.0
+    requisition_government_trust_penalty: float = 0.0
+    food_requisition: FoodRequisitionBreakdown | None = None
 
 
 @dataclass(frozen=True)
@@ -158,6 +179,7 @@ class SkipMoveReport:
     industry_income: float
     science_income: float
     resource_balance: float
+    trade_deal_balance: float
     debt_interest: float
     resource_effect_wastes: float
     money_income: float
@@ -174,3 +196,4 @@ class SkipMoveReport:
     ledger: TurnLedger | None = None
     probabilities: ProbabilityStats | None = None
     population_growth: PopulationGrowthBreakdown | None = None
+    food_requisition: FoodRequisitionBreakdown | None = None

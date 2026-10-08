@@ -90,6 +90,8 @@ def test_population_report_explains_every_growth_factor() -> None:
     assert "Коэффициент разнообразия" in output
     assert "Убыль по УНЧС" in output
     assert "Смерти от недоедания" in output
+    assert "ПРОДОВОЛЬСТВЕННОЕ ИЗЪЯТИЕ" in output
+    assert "Довольство только на этот ход" in output
     assert growth.final_growth == pytest.approx(
         growth.growth_after_resources * growth.total_factor
     )

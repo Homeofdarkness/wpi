@@ -12,6 +12,7 @@ from functions import industry_models as industry
 from functions import probability_models as probability
 from functions import production_models as production
 from functions import resource_models as resources
+from functions import trade_deal_models
 from functions import trade_models as trade
 from functions.economy_models import population_growth
 from functions.income_models import (
@@ -43,6 +44,7 @@ from functions.time_models import (
 from modules.skip_move_rules import BasicSkipMoveRules, SkipMoveRules
 from modules.skip_move_types import (
     CalculationResults,
+    FoodRequisitionBreakdown,
     PopulationGrowthBreakdown,
     SkipMoveContext,
     SkipMoveReport,
@@ -54,6 +56,8 @@ from stats.industry_components import (
     ExtractionGroup,
     IndustrialReadinessReport,
     IndustrialStage,
+    ResourceState,
+    ResourceType,
 )
 from stats.industry_effects import (
     EffectPhase,
@@ -63,6 +67,13 @@ from stats.industry_effects import (
     SpecialEffectTarget,
     evaluate_effect_formula,
     resolve_effect_target,
+)
+from stats.trade_components import (
+    TradeDeal,
+    TradeDealResult,
+    TradeDirection,
+    TradeLeg,
+    TradeTargetKind,
 )
 from utils.logger_manager import get_logger
 from utils.user_io import ConsoleIO, UserIO
@@ -116,6 +127,11 @@ class TurnEngine:
         self.state.industry.last_effects = []
         self.state.industry.last_readiness = None
         self.state.industry.last_extraction_demand_focus = 0.0
+        self.state.industry.last_trade_imported = {}
+        self.state.industry.last_trade_exported = {}
+        self.state.trade.last_results = []
+        self.state.trade.last_money_balance = 0.0
+        self.state.trade.last_turn_calculated = False
         economy = self.state.economy
         self._stability_at_turn_start = float(economy.stability)
         self._base_population_growth = float(economy.income or 0.0)
@@ -134,6 +150,14 @@ class TurnEngine:
         self._calculate_operational_probabilities()
 
         self._calculate_agriculture(results)
+        self.state.industry.last_stock_before = {
+            resource: float(resource_state.stockpile)
+            for resource, resource_state in (
+                self.state.industry.resource_inventory.resources.items()
+            )
+            if resource_state.enabled
+        }
+        self._execute_detailed_trade(TradeDirection.IMPORT)
         self._resolve_industrial_resources()
         self._apply_industrial_effects(EffectPhase.AFTER_RESOURCES)
         self._calculate_population(results)
@@ -141,10 +165,12 @@ class TurnEngine:
         self._apply_industrial_effects(EffectPhase.AFTER_INDUSTRY)
         self._calculate_tax(results)
         self._apply_industrial_effects(EffectPhase.AFTER_TAX)
-        self._calculate_trade()
+        self._calculate_trade(results)
+        self._settle_detailed_trade_imports()
+        self._execute_detailed_trade(TradeDirection.EXPORT)
         self._apply_industrial_effects(EffectPhase.AFTER_TRADE)
         ledger = self._calculate_income(results, logistic_wastes)
-        self._calculate_event_probabilities()
+        self._calculate_event_probabilities(results)
         self._apply_industrial_effects(EffectPhase.AFTER_PROBABILITIES)
 
         report = self._finalize(
@@ -152,6 +178,7 @@ class TurnEngine:
             logistic_discount=float(results.logistic_params.discount),
             contentment_coefficient=float(results.contentment_coefficient_2),
             ledger=ledger,
+            results=results,
         )
         taken, amount, final_budget = self._apply_credit_if_needed()
         report.credit_taken = taken
@@ -549,7 +576,10 @@ class TurnEngine:
             self.rng,
         )
 
-    def _calculate_event_probabilities(self) -> None:
+    def _calculate_event_probabilities(
+        self,
+        results: CalculationResults,
+    ) -> None:
         economy = self.state.economy
         industry_state = self.state.industry
         agriculture_state = self.state.agriculture
@@ -613,8 +643,8 @@ class TurnEngine:
             years=self.calendar.years,
         )
         stats.mass_protest_chance = probability.mass_protest_chance(
-            politics.contentment,
-            politics.government_trust,
+            self._temporary_contentment(results),
+            self._temporary_government_trust(results),
             politics.inequality,
             politics.polarization,
             politics.war_fatigue,
@@ -668,6 +698,40 @@ class TurnEngine:
                 agriculture_state.workers_redistribution,
             ),
         )
+
+    def _temporary_contentment(
+        self,
+        results: CalculationResults,
+        *,
+        include_logistic_spotter: bool = False,
+    ) -> float:
+        value = float(self.state.inner_politics.contentment)
+        if include_logistic_spotter:
+            value += results.logistic_params.contentment_spotter
+        return max(value - results.requisition_contentment_penalty, 0.0)
+
+    def _temporary_government_trust(
+        self,
+        results: CalculationResults,
+    ) -> float:
+        return max(
+            float(self.state.inner_politics.government_trust)
+            - results.requisition_government_trust_penalty,
+            0.0,
+        )
+
+    def _refresh_temporary_social_values(
+        self,
+        results: CalculationResults,
+    ) -> None:
+        first, second = contentment_coefficients(
+            self._temporary_contentment(
+                results,
+                include_logistic_spotter=True,
+            )
+        )
+        results.contentment_coefficient_1 = first
+        results.contentment_coefficient_2 = second
 
     def _calculate_agriculture(self, results: CalculationResults) -> None:
         economy = self.state.economy
@@ -756,12 +820,55 @@ class TurnEngine:
             )
             food_balance += taken_from_supplies
 
+        security_before_requisition = agriculture.food_security_index(
+            consumed + food_balance,
+            consumed,
+        )
+        storage_capacity = max(float(state.storages_upkeep) * 39.0, 0.0)
+        storage_room = max(storage_capacity - state.food_supplies, 0.0)
+        requisition_amount = round(
+            agriculture.food_requisition_amount(
+                consumed,
+                food_balance,
+                state.overstock_percent,
+                storage_room,
+            ),
+            1,
+        )
+        if requisition_amount > 0:
+            state.food_supplies = round(
+                state.food_supplies + requisition_amount,
+                1,
+            )
+            food_balance -= requisition_amount
+
+        contentment_penalty, trust_penalty = (
+            agriculture.food_requisition_social_penalties(
+                requisition_amount,
+                consumed,
+            )
+        )
+        results.requisition_contentment_penalty = contentment_penalty
+        results.requisition_government_trust_penalty = trust_penalty
         effective_food = consumed + food_balance
         state.food_security = round(
             agriculture.food_security_index(effective_food, consumed),
             1,
         )
         results.food_balance = food_balance
+        results.food_consumed = consumed
+        results.food_requisition = FoodRequisitionBreakdown(
+            policy_percent=float(state.overstock_percent),
+            food_security_before=security_before_requisition,
+            food_security_after=float(state.food_security),
+            consumption_share=(
+                requisition_amount / consumed * 100 if consumed > 0 else 0.0
+            ),
+            amount=requisition_amount,
+            contentment_penalty=contentment_penalty,
+            government_trust_penalty=trust_penalty,
+        )
+        self._refresh_temporary_social_values(results)
 
     def _prepare_agricultural_resource_demands(
         self,
@@ -818,6 +925,7 @@ class TurnEngine:
             )
 
     def _calculate_population(self, results: CalculationResults) -> None:
+        self._refresh_temporary_social_values(results)
         economy = self.state.economy
         agriculture_state = self.state.agriculture
         politics = self.state.inner_politics
@@ -876,6 +984,7 @@ class TurnEngine:
             agriculture_state.biome_richness,
             rng=self.rng,
             reference_scale=self.calendar.reference_scale,
+            food_consumed=results.food_consumed,
         )
         population_after = max(0, int(population_with_growth - deaths))
         economy.population_count = population_after
@@ -905,18 +1014,313 @@ class TurnEngine:
     def _resolve_industrial_resources(self) -> None:
         state = self.state.industry
         state.last_turn_calculated = True
-        state.last_stock_before = {
-            resource: float(resource_state.stockpile)
-            for resource, resource_state in (
-                state.resource_inventory.resources.items()
-            )
-            if resource_state.enabled
-        }
         state.last_resource_consumed = {}
         self._advance_industrial_resources()
         self._process_production_rules()
         self._spend_industrial_resources()
         self._update_agricultural_resource_security()
+
+    def _trade_target_resources(self, leg: TradeLeg) -> list[ResourceState]:
+        inventory = self.state.industry.resource_inventory.resources
+        if leg.kind is TradeTargetKind.RESOURCE:
+            assert leg.alias is not None
+            resource = inventory.get(ResourceType(leg.alias))
+            return (
+                [resource] if resource is not None and resource.enabled else []
+            )
+        if leg.kind is TradeTargetKind.GROUP:
+            assert leg.alias is not None
+            group = ExtractionGroup(leg.alias)
+            return [
+                resource
+                for resource in inventory.values()
+                if resource.enabled and resource.group is group
+            ]
+        return []
+
+    def _trade_leg_capacity(self, leg: TradeLeg, *, giving: bool) -> float:
+        if leg.kind is TradeTargetKind.MONEY:
+            return float("inf")
+        resources_for_leg = self._trade_target_resources(leg)
+        if giving:
+            return sum(resource.stockpile for resource in resources_for_leg)
+        return sum(
+            max(resource.storage_capacity - resource.stockpile, 0.0)
+            for resource in resources_for_leg
+        )
+
+    def _ordered_trade_resources(
+        self,
+        leg: TradeLeg,
+        *,
+        giving: bool,
+    ) -> list[ResourceState]:
+        candidates = self._trade_target_resources(leg)
+        if giving:
+            return sorted(
+                candidates,
+                key=lambda resource: resource.stockpile,
+                reverse=True,
+            )
+        return sorted(
+            candidates,
+            key=lambda resource: (
+                max(
+                    self._turn_resource_demands.get(resource.resource, 0.0)
+                    - resource.stockpile,
+                    0.0,
+                ),
+                resource.storage_capacity - resource.stockpile,
+            ),
+            reverse=True,
+        )
+
+    def _apply_trade_resource_leg(
+        self,
+        leg: TradeLeg,
+        amount: float,
+        *,
+        giving: bool,
+    ) -> dict[str, float]:
+        remaining = max(float(amount), 0.0)
+        allocations: dict[str, float] = {}
+
+        def transfer_amount(resource: ResourceState, requested: float) -> None:
+            nonlocal remaining
+            if requested <= 1e-9:
+                return
+            transfer = (
+                resource.spend(requested)
+                if giving
+                else resource.collect(requested)
+            )
+            if transfer.actual > 0:
+                alias = resource.resource.value
+                allocations[alias] = (
+                    allocations.get(alias, 0.0) + transfer.actual
+                )
+                remaining -= transfer.actual
+
+        ordered = self._ordered_trade_resources(leg, giving=giving)
+        if not giving and leg.kind is TradeTargetKind.GROUP:
+            # First close current-turn shortages across the group.  Only a
+            # genuinely excess shipment may then fill general free storage.
+            for resource in ordered:
+                if remaining <= 1e-9:
+                    break
+                shortage = max(
+                    self._turn_resource_demands.get(resource.resource, 0.0)
+                    - resource.stockpile,
+                    0.0,
+                )
+                transfer_amount(resource, min(remaining, shortage))
+        for resource in ordered:
+            if remaining <= 1e-9:
+                break
+            transfer_amount(resource, remaining)
+        return allocations
+
+    def _detailed_trade_quality_factor(self) -> float:
+        economy = self.state.economy
+        readiness = self.state.industry.last_readiness
+        return trade_deal_models.export_quality_factor(
+            (
+                readiness.effective_high_quality
+                if readiness is not None
+                else economy.high_quality_percent
+            ),
+            (
+                readiness.effective_mid_quality
+                if readiness is not None
+                else economy.mid_quality_percent
+            ),
+            (
+                readiness.effective_low_quality
+                if readiness is not None
+                else economy.low_quality_percent
+            ),
+        )
+
+    def _trade_money_balance(
+        self,
+        deal: TradeDeal,
+        actual_payment: float,
+    ) -> float:
+        if deal.payment.kind is not TradeTargetKind.MONEY:
+            return 0.0
+        economy = self.state.economy
+        settlement = trade_deal_models.currency_settlement_factor(
+            economy.forex or 1.0,
+            economy.valgery,
+        )
+        if deal.direction is TradeDirection.IMPORT:
+            return -actual_payment / max(settlement, 1e-9)
+        return (
+            actual_payment * settlement * self._detailed_trade_quality_factor()
+        )
+
+    def _execute_detailed_trade(self, direction: TradeDirection) -> None:
+        """Execute imports before domestic use and exports after it."""
+
+        trade_state = self.state.trade
+        economy = self.state.economy
+        matching = [
+            deal
+            for deal in trade_state.deals
+            if deal.active and deal.direction is direction
+        ]
+        if not matching:
+            if trade_state.deals:
+                trade_state.last_turn_calculated = True
+            return
+        route_factor = trade_deal_models.route_fulfillment_factor(
+            economy.trade_efficiency,
+            economy.trade_usage,
+            economy.trade_potential or 0.0,
+        )
+        for deal in matching:
+            planned_delivery = (
+                deal.delivery.amount_per_month * self.calendar.months
+            )
+            planned_payment = (
+                deal.payment.amount_per_month * self.calendar.months
+            )
+            routed_delivery = planned_delivery * route_factor
+            routed_payment = planned_payment * route_factor
+            local_give = (
+                deal.payment
+                if direction is TradeDirection.IMPORT
+                else deal.delivery
+            )
+            local_receive = (
+                deal.delivery
+                if direction is TradeDirection.IMPORT
+                else deal.payment
+            )
+            routed_local_give = (
+                routed_payment
+                if direction is TradeDirection.IMPORT
+                else routed_delivery
+            )
+            routed_local_receive = (
+                routed_delivery
+                if direction is TradeDirection.IMPORT
+                else routed_payment
+            )
+            give_capacity = self._trade_leg_capacity(
+                local_give,
+                giving=True,
+            )
+            receive_capacity = self._trade_leg_capacity(
+                local_receive,
+                giving=False,
+            )
+            give_ratio = (
+                min(give_capacity / routed_local_give, 1.0)
+                if routed_local_give > 0
+                else 1.0
+            )
+            receive_ratio = (
+                min(receive_capacity / routed_local_receive, 1.0)
+                if routed_local_receive > 0
+                else 1.0
+            )
+            resource_ratio = min(give_ratio, receive_ratio)
+            fulfillment = route_factor * resource_ratio
+            actual_delivery = planned_delivery * fulfillment
+            actual_payment = planned_payment * fulfillment
+            delivery_allocations = self._apply_trade_resource_leg(
+                deal.delivery,
+                actual_delivery,
+                giving=direction is TradeDirection.EXPORT,
+            )
+            payment_allocations = (
+                {}
+                if deal.payment.kind is TradeTargetKind.MONEY
+                else self._apply_trade_resource_leg(
+                    deal.payment,
+                    actual_payment,
+                    giving=direction is TradeDirection.IMPORT,
+                )
+            )
+            exported_allocations = (
+                payment_allocations
+                if direction is TradeDirection.IMPORT
+                else delivery_allocations
+            )
+            imported_allocations = (
+                delivery_allocations
+                if direction is TradeDirection.IMPORT
+                else payment_allocations
+            )
+            for alias, amount in exported_allocations.items():
+                resource = ResourceType(alias)
+                self.state.industry.last_trade_exported[resource] = (
+                    self.state.industry.last_trade_exported.get(resource, 0.0)
+                    + amount
+                )
+            for alias, amount in imported_allocations.items():
+                resource = ResourceType(alias)
+                self.state.industry.last_trade_imported[resource] = (
+                    self.state.industry.last_trade_imported.get(resource, 0.0)
+                    + amount
+                )
+            limitations = []
+            if route_factor < 0.9999:
+                limitations.append("эффективность и загрузка торговых путей")
+            if give_ratio < 0.9999:
+                limitations.append("доступный запас для отдачи")
+            if receive_ratio < 0.9999:
+                limitations.append("свободная вместимость складов")
+            if not limitations:
+                limitations.append("нет")
+            money_balance = (
+                0.0
+                if direction is TradeDirection.IMPORT
+                else self._trade_money_balance(
+                    deal,
+                    actual_payment,
+                )
+            )
+            trade_state.last_money_balance += money_balance
+            trade_state.last_results.append(
+                TradeDealResult(
+                    deal_id=deal.id,
+                    direction=deal.direction,
+                    delivery_target=deal.delivery.target,
+                    payment_target=deal.payment.target,
+                    planned_delivery=planned_delivery,
+                    planned_payment=planned_payment,
+                    actual_delivery=actual_delivery,
+                    actual_payment=actual_payment,
+                    fulfillment=fulfillment,
+                    route_factor=route_factor,
+                    money_balance=money_balance,
+                    limitation=", ".join(limitations),
+                    delivery_allocations=delivery_allocations,
+                    payment_allocations=payment_allocations,
+                )
+            )
+        trade_state.last_turn_calculated = True
+
+    def _settle_detailed_trade_imports(self) -> None:
+        """Price early resource imports using the current turn's forex."""
+
+        trade_state = self.state.trade
+        deals = {deal.id: deal for deal in trade_state.deals}
+        refreshed: list[TradeDealResult] = []
+        trade_state.last_money_balance = 0.0
+        for result in trade_state.last_results:
+            deal = deals[result.deal_id]
+            money_balance = self._trade_money_balance(
+                deal,
+                result.actual_payment,
+            )
+            refreshed.append(
+                result.model_copy(update={"money_balance": money_balance})
+            )
+            trade_state.last_money_balance += money_balance
+        trade_state.last_results = refreshed
 
     def _update_agricultural_resource_security(self) -> None:
         state = self.state.agriculture
@@ -1347,6 +1751,7 @@ class TurnEngine:
         )
 
     def _calculate_tax(self, results: CalculationResults) -> None:
+        self._refresh_temporary_social_values(results)
         self.state.economy.tax_income = self.calendar.scale_flow(
             self.rules.calculate_tax_income(
                 self._ctx(),
@@ -1354,7 +1759,7 @@ class TurnEngine:
             )
         )
 
-    def _calculate_trade(self) -> None:
+    def _calculate_trade(self, results: CalculationResults) -> None:
         economy = self.state.economy
         industry_state = self.state.industry
         politics = self.state.inner_politics
@@ -1376,7 +1781,7 @@ class TurnEngine:
             trade_overload=economy.trade_usage_load(),
             industry_efficiency=industry_state.civil_efficiency,
             state_apparatus_efficiency=(politics.state_apparatus_efficiency),
-            contentment=politics.contentment,
+            contentment=self._temporary_contentment(results),
             poor_level=politics.poor_level,
             jobless_level=politics.jobless_level,
             control_balance=control,
@@ -1449,6 +1854,7 @@ class TurnEngine:
             industry_income=float(industry_state.industry_income),
             science_income=science_income,
             resource_balance=resource_balance,
+            trade_deal_balance=float(self.state.trade.last_money_balance),
             debt_interest=self._debt_interest(),
             resource_effect_wastes=self.resource_effect_wastes,
             total_wastes=self._total_wastes(logistic_wastes),
@@ -1548,6 +1954,7 @@ class TurnEngine:
         logistic_discount: float,
         contentment_coefficient: float,
         ledger: TurnLedger,
+        results: CalculationResults,
     ) -> SkipMoveReport:
         economy = self.state.economy
         economy.prev_budget = budget_before
@@ -1594,6 +2001,7 @@ class TurnEngine:
             industry_income=ledger.industry_income,
             science_income=ledger.science_income,
             resource_balance=ledger.resource_balance,
+            trade_deal_balance=ledger.trade_deal_balance,
             debt_interest=ledger.debt_interest,
             resource_effect_wastes=ledger.resource_effect_wastes,
             money_income=float(economy.money_income),
@@ -1608,6 +2016,7 @@ class TurnEngine:
             ledger=ledger,
             probabilities=self.state.probabilities.model_copy(deep=True),
             population_growth=self.population_growth_breakdown,
+            food_requisition=results.food_requisition,
         )
 
     def _apply_credit_if_needed(self) -> tuple[bool, float | None, float]:

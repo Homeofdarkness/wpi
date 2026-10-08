@@ -270,6 +270,17 @@ uv run python create_basic_country.py
 uv run python create_basic_country.py --turns 1 --seed 1
 ```
 
+С отдельными импортными, экспортными и бартерными сделками:
+
+```powershell
+uv run python create_basic_country.py `
+  --trade-settings "test_files\trade_settings_example.toml" `
+  --turns 1 `
+  --seed 1
+```
+
+Формат файла и порядок расчёта описаны в `TRADE.md`.
+
 Для нескольких ходов измените `--turns`; `--seed` можно опустить. При файловом
 запуске кредит автоматически не оформляется, поэтому программа не ждёт ручной
 ввод.

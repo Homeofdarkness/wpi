@@ -20,6 +20,7 @@ from stats.industry_text import (
     LEGACY_CONFIG_START,
     TOML_SCHEMA_PATTERN,
 )
+from stats.trade_text import parse_trade_configuration
 from utils.user_io import ConsoleIO
 
 
@@ -98,7 +99,11 @@ def read_source(path: Path) -> tuple[list[str], str | None]:
     return answers, config_text
 
 
-def create_basic_country(input_path: Path) -> WorldState:
+def create_basic_country(
+    input_path: Path,
+    *,
+    trade_configuration: str | None = None,
+) -> WorldState:
     raw_answers, industry_configuration = read_source(input_path)
     answers = iter(raw_answers)
     last_prompt = "неизвестное поле"
@@ -121,6 +126,12 @@ def create_basic_country(input_path: Path) -> WorldState:
     )
     with patch("builtins.input", side_effect=file_input):
         country = creator.read()
+
+    if trade_configuration:
+        country.trade = parse_trade_configuration(
+            trade_configuration,
+            country.industry,
+        )
 
     extra_answer = next(answers, None)
     if extra_answer is not None:
@@ -181,6 +192,14 @@ def render_country(
         include_pending_production=False
     )
     result_parts.append(f"Отдельный отчёт промышленности -\n{reports_text}")
+    if country.trade.deals:
+        from functions.time_models import TURN_MONTHS
+
+        turn_months = report.turn_months if report is not None else TURN_MONTHS
+        result_parts.append(
+            "Отдельный отчёт торговли -\n"
+            f"{country.trade.render_turn_report(turn_months)}"
+        )
     return "\n\n".join(result_parts) + "\n"
 
 
@@ -212,6 +231,19 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--trade-settings",
+        type=Path,
+        help="Отдельный опциональный TOML с локальными торговыми сделками.",
+    )
+    parser.add_argument(
+        "--trade-settings-output",
+        type=Path,
+        help=(
+            "Куда записать TOML торговли для следующего хода. "
+            "По умолчанию — рядом с основной статой."
+        ),
+    )
+    parser.add_argument(
         "--turns",
         type=int,
         default=0,
@@ -229,7 +261,15 @@ def main() -> None:
     if args.turns < 0:
         parser.error("--turns не может быть отрицательным")
 
-    country = create_basic_country(args.input)
+    trade_configuration = (
+        args.trade_settings.read_text(encoding="utf-8")
+        if args.trade_settings is not None
+        else None
+    )
+    country = create_basic_country(
+        args.input,
+        trade_configuration=trade_configuration,
+    )
     reports = advance_basic_country(country, turns=args.turns, seed=args.seed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     last_report = reports[-1] if reports else None
@@ -245,8 +285,22 @@ def main() -> None:
         f"{country.industry.render_configuration()}\n",
         encoding="utf-8",
     )
+    trade_settings_output = None
+    if country.trade.deals:
+        trade_settings_output = (
+            args.trade_settings_output
+            or args.output.with_name(f"{args.output.stem}_trade_settings.toml")
+        )
+        trade_settings_output.parent.mkdir(parents=True, exist_ok=True)
+        trade_settings_output.write_text(
+            f"{country.trade.render_configuration()}\n",
+            encoding="utf-8",
+        )
     print(f"Страна базового режима создана: {args.output}")
     print(f"TOML промышленности: {settings_output}")
+    if trade_settings_output is not None:
+        print(f"TOML торговли: {trade_settings_output}")
+        print(f"Торговые сделки: {len(country.trade.deals)}")
     print(f"Эффекты промышленности: {len(country.industry.effects)}")
     if args.turns:
         print(f"Рассчитано ходов: {args.turns}")

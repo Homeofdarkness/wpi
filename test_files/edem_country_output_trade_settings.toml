@@ -1,0 +1,15 @@
+schema_version = 2
+
+[[deals]]
+id = "water_for_copper"
+direction = "import"
+active = true
+delivery = { target = "resource:fresh_water", amount_per_month = 300.0 }
+payment = { target = "resource:copper", amount_per_month = 50.0 }
+
+[[deals]]
+id = "construction_purchase"
+direction = "import"
+active = true
+delivery = { target = "group:construction", amount_per_month = 180.0 }
+payment = { target = "money", amount_per_month = 100.0 }

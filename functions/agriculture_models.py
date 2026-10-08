@@ -15,6 +15,9 @@ AGRICULTURAL_WORKERS_PER_BLOCK = 5.0
 HECTARES_PER_AGRICULTURAL_BLOCK = 10.0
 TOOLS_PER_AGRICULTURAL_BLOCK_PER_MONTH = 0.005
 FERTILIZERS_PER_AGRICULTURAL_BLOCK_PER_MONTH = 0.01
+MINIMUM_REQUISITION_FOOD_SECURITY = 40.0
+CONTENTMENT_PENALTY_PER_SECURITY_POINT = 0.25
+TRUST_PENALTY_PER_SECURITY_POINT = 1.0 / 6.0
 
 
 def additional_waste_per_worker(security_percent: float) -> float:
@@ -310,6 +313,47 @@ def food_supplies(
     return min(new_supplies, available_storage)
 
 
+def food_requisition_amount(
+    food_consumed: float,
+    food_balance: float,
+    policy_percent: float,
+    storage_room: float,
+) -> float:
+    """Return food forcibly moved from consumption into state reserves.
+
+    Requisition is allowed only when final food coverage is between 40 and
+    100 percent.  The policy percentage selects a share of food above the
+    protected 40-percent floor, so this mechanic alone cannot push coverage
+    below that floor.  Ordinary surplus above 100 percent is handled by
+    ``food_supplies`` and carries no social penalty.
+    """
+    consumed = max(float(food_consumed), 0.0)
+    room = max(float(storage_room), 0.0)
+    if consumed <= 0 or room <= 0 or food_balance > 0:
+        return 0.0
+
+    effective_food = max(consumed + float(food_balance), 0.0)
+    protected_food = consumed * (MINIMUM_REQUISITION_FOOD_SECURITY / 100)
+    available = max(effective_food - protected_food, 0.0)
+    policy = float(np.clip(policy_percent, 0.0, 100.0)) / 100.0
+    return min(available * policy, room)
+
+
+def food_requisition_social_penalties(
+    requisition_amount: float,
+    food_consumed: float,
+) -> tuple[float, float]:
+    """Return temporary contentment and government-trust penalties."""
+    consumed = max(float(food_consumed), 0.0)
+    if consumed <= 0:
+        return 0.0, 0.0
+    security_points = max(float(requisition_amount), 0.0) / consumed * 100.0
+    return (
+        security_points * CONTENTMENT_PENALTY_PER_SECURITY_POINT,
+        security_points * TRUST_PENALTY_PER_SECURITY_POINT,
+    )
+
+
 def population_underfeed(
     population_count: int,
     food_balance: float,
@@ -317,26 +361,73 @@ def population_underfeed(
     death_probability: float = 0.36,
     rng: Generator | None = None,
     reference_scale: float = 1.0,
+    food_consumed: float | None = None,
 ) -> int:
+    """Return deaths caused by the part of food demand left uncovered.
+
+    Mortality is deliberately split into three continuous zones by final food
+    coverage.  A mild quadratic curve operates between 80 and 100 percent,
+    the curve accelerates toward 50 percent, and a critical curve rises
+    sharply below 50 percent.  Probabilities are calibrated to the reference
+    six-month turn and compounded for the actual turn duration.
+
+    ``food_consumed`` must be the same demand value that formed
+    ``food_balance``.  Keeping the numerator and denominator on one scale
+    prevents the consumption coefficient from artificially enlarging the
+    population at risk.
+    """
     shortage = max(0.0, -food_balance)
     if shortage <= 0:
         return 0
     scale = max(float(reference_scale), 0.0)
-    total_need = population_count / 10000.0 * 2.5 * scale
+    total_need = (
+        float(food_consumed)
+        if food_consumed is not None
+        else population_count / 10000.0 * 2.5 * scale
+    )
     if total_need <= 0:
         return 0
     shortage_fraction = min(1.0, shortage / total_need)
     at_risk = int(math.ceil(population_count * shortage_fraction))
-    climate_reduction = 0.02 * (biome_richness / 10.0)
-    reference_probability = float(
-        np.clip(
-            death_probability * (1.0 - climate_reduction),
-            0.12,
-            0.36,
-        )
+    food_security = (1.0 - shortage_fraction) * 100.0
+    reference_probability = underfeed_reference_death_probability(
+        food_security,
+        catastrophic_probability=death_probability,
     )
     effective_probability = 1 - (1 - reference_probability) ** scale
     generator = rng or np.random.default_rng()
     deaths = int(generator.binomial(at_risk, effective_probability))
-    survival_reduction = 0.05 * (biome_richness / 10.0)
+    survival_reduction = min(
+        max(0.005 * float(biome_richness), 0.0),
+        0.5,
+    )
     return max(0, round(deaths * (1.0 - survival_reduction)))
+
+
+def underfeed_reference_death_probability(
+    food_security: float,
+    *,
+    catastrophic_probability: float = 0.36,
+) -> float:
+    """Return excess mortality probability for a six-month reference turn.
+
+    The value is the probability for a person in the uncovered part of food
+    demand, before biome mitigation:
+
+    * 80..100% coverage: 0..1%, quadratic;
+    * 50..80% coverage: 1..10%, quadratic;
+    * 0..50% coverage: 10%..catastrophic maximum, sharply accelerating.
+    """
+    coverage = float(np.clip(food_security, 0.0, 100.0)) / 100.0
+    maximum = float(np.clip(catastrophic_probability, 0.10, 1.0))
+
+    if coverage >= 0.80:
+        severity = (1.0 - coverage) / 0.20
+        return 0.01 * severity**2
+
+    if coverage >= 0.50:
+        severity = (0.80 - coverage) / 0.30
+        return 0.01 + 0.09 * severity**2
+
+    severity = (0.50 - coverage) / 0.50
+    return 0.10 + (maximum - 0.10) * severity**0.65

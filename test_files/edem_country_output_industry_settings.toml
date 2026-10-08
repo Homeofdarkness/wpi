@@ -22,7 +22,7 @@ storage_capacity = 30000.0
 name = "Медь"
 group = "nonferrous"
 stage = "machine"
-availability = 200.0
+availability = 75.0
 quality = 80.0
 consumption_per_month = 0.0
 storage_capacity = 6000.0
@@ -53,6 +53,15 @@ availability = 80.0
 quality = 80.0
 consumption_per_month = 0.0
 storage_capacity = 7000.0
+
+[resources.silicon]
+name = "Кремний"
+group = "chemical"
+stage = "machine"
+availability = 85.0
+quality = 82.0
+consumption_per_month = 0.0
+storage_capacity = 10000.0
 
 [resources.basic_building_materials]
 name = "Базовые стройматериалы"
@@ -108,15 +117,6 @@ quality = 100.0
 consumption_per_month = 0.0
 storage_capacity = 8000.0
 
-[resources.sand]
-name = "Песок"
-group = "chemical"
-stage = "machine"
-availability = 85.0
-quality = 82.0
-consumption_per_month = 0.0
-storage_capacity = 10000.0
-
 [extraction.forestry]
 intensity = 70.0
 priority = 3
@@ -141,7 +141,7 @@ priority = 2
 intensity = 70.0
 priority = 3
 
-[extraction.coal]
+[extraction.solid_fuel]
 intensity = 75.0
 priority = 2
 
@@ -155,7 +155,7 @@ name = "Базовые стройматериалы"
 active = true
 batches = 150.0
 months = 33
-inputs = { iron = 2.0, coal = 1.0, sand = 0.5 }
+inputs = { iron = 2.0, coal = 1.0, silicon = 0.5 }
 outputs = { basic_building_materials = 2.5 }
 byproducts = { slag = 0.4 }
 

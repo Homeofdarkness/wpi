@@ -23,6 +23,7 @@ EXAMPLE_FILES = tuple(
         "03_industry_settings.toml",
         "04_agriculture.txt",
         "05_government_control_people.txt",
+        "06_trade_settings.toml",
     )
 )
 
