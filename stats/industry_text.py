@@ -150,6 +150,7 @@ class IndustryTextState:
     effects: list[IndustrialEffect]
     demands: dict[ResourceType, float]
     extracted: dict[ResourceType, float]
+    produced: dict[ResourceType, float]
     shortages: dict[ResourceType, float]
 
 
@@ -174,14 +175,16 @@ def _pair(value: str) -> tuple[float, float]:
 def render_resource_state_table(
     resources: list[ResourceState],
     extracted: dict[ResourceType, float],
+    produced: dict[ResourceType, float],
     shortages: dict[ResourceType, float],
 ) -> list[str]:
-    headers = ("Ресурс", "Склад", "Добыто", "Дефицит")
+    headers = ("Ресурс", "Склад", "Добыто", "Произведено", "Дефицит")
     rows = [
         (
             f"{state.definition.name} [{state.resource.value}]",
             f"{_number(state.stockpile)} / {_number(state.storage_capacity)}",
             _number(extracted.get(state.resource, 0.0)),
+            _number(produced.get(state.resource, 0.0)),
             _number(shortages.get(state.resource, 0.0)),
         )
         for state in resources
@@ -192,10 +195,17 @@ def render_resource_state_table(
 def render_group_state_table(
     resources: list[ResourceState],
     extracted: dict[ResourceType, float],
+    produced: dict[ResourceType, float],
     shortages: dict[ResourceType, float],
 ) -> list[str]:
     """Render every fixed group, including groups without country resources."""
-    headers = ("Группа", "Ресурсов", "Добыто", "Дефицит")
+    headers = (
+        "Группа",
+        "Ресурсов",
+        "Добыто",
+        "Произведено",
+        "Дефицит",
+    )
     rows: list[tuple[str, ...]] = []
     for group in ExtractionGroup:
         group_resources = [item for item in resources if item.group is group]
@@ -206,6 +216,12 @@ def render_group_state_table(
                 _number(
                     sum(
                         extracted.get(item.resource, 0.0)
+                        for item in group_resources
+                    )
+                ),
+                _number(
+                    sum(
+                        produced.get(item.resource, 0.0)
                         for item in group_resources
                     )
                 ),
@@ -362,20 +378,23 @@ def _toml_resource_map(values: dict[ResourceType, float]) -> str:
 
 def _parse_state_row(
     line: str,
-) -> tuple[ResourceType, float, float, float, float]:
+) -> tuple[ResourceType, float, float, float, float, float]:
     cells = [cell.strip() for cell in line.split("|")]
-    if len(cells) != 4:
+    if len(cells) not in {4, 5}:
         raise ValueError(f"Некорректная строка состояния ресурса: {line!r}")
     match = re.search(r"\[([a-z][a-z0-9_]*)\]$", cells[0])
     if match is None:
         raise ValueError(f"В состоянии ресурса нет alias: {line!r}")
     stockpile, storage = _pair(cells[1])
+    produced = _float(cells[3]) if len(cells) == 5 else 0.0
+    shortage = _float(cells[4]) if len(cells) == 5 else _float(cells[3])
     return (
         ResourceType(match.group(1)),
         stockpile,
         storage,
         _float(cells[2]),
-        _float(cells[3]),
+        produced,
+        shortage,
     )
 
 
@@ -536,6 +555,7 @@ def parse_industry_configuration(text: str) -> IndustryTextState | None:
         )
 
     extracted: dict[ResourceType, float] = {}
+    produced: dict[ResourceType, float] = {}
     shortages: dict[ResourceType, float] = {}
     state_sections = [
         index
@@ -559,7 +579,7 @@ def parse_industry_configuration(text: str) -> IndustryTextState | None:
                 r"\[[a-z][a-z0-9_]*\]", stripped
             ):
                 break
-            resource, stockpile, _shown_storage, mined, shortage = (
+            resource, stockpile, _shown_storage, mined, made, shortage = (
                 _parse_state_row(stripped)
             )
             if resource not in registrations:
@@ -578,6 +598,7 @@ def parse_industry_configuration(text: str) -> IndustryTextState | None:
                 registration.storage_capacity,
             )
             extracted[resource] = mined
+            produced[resource] = made
             shortages[resource] = shortage
 
     demands = {
@@ -592,5 +613,6 @@ def parse_industry_configuration(text: str) -> IndustryTextState | None:
         effects=config.effects,
         demands=demands,
         extracted=extracted,
+        produced=produced,
         shortages=shortages,
     )

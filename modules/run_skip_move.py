@@ -160,6 +160,10 @@ class TurnEngine:
         self._execute_detailed_trade(TradeDirection.IMPORT)
         self._resolve_industrial_resources()
         self._apply_industrial_effects(EffectPhase.AFTER_RESOURCES)
+        # Resource-driven effects may change primary social stats such as
+        # grace_of_the_highest.  Refresh their derived values now so the
+        # current turn's population calculation sees the updated society
+        # decline instead of waiting until the next turn.
         self.state.inner_politics.recalculate_derived_fields()
         self._calculate_population(results)
         self._calculate_industry()
@@ -1713,6 +1717,7 @@ class TurnEngine:
             rule for rule in state.production_rules if rule.enabled
         ]
         state.last_production = []
+        state.last_produced = {}
         labor_factor = state.workforce.production_labor_coverage / 100.0
         for rule in active_rules:
             planned_batches = self.calendar.scale_flow(rule.batches)
@@ -1730,6 +1735,14 @@ class TurnEngine:
                     turns_remaining=rule.turns_remaining,
                 )
             )
+            for mapping in (
+                result.outputs_produced,
+                result.byproducts_produced,
+            ):
+                for resource, amount in mapping.items():
+                    state.last_produced[resource] = (
+                        state.last_produced.get(resource, 0.0) + amount
+                    )
 
     def _spend_industrial_resources(self) -> None:
         state = self.state.industry

@@ -120,6 +120,7 @@ def test_external_industry_numbers_have_at_most_one_decimal_place():
         accessibility=82.345,
     )
     industry.last_extracted = {ResourceType.IRON: 45.678}
+    industry.last_produced = {ResourceType.IRON: 6.789}
     industry.resource_shortages = {ResourceType.IRON: 1.234}
 
     state_text = str(industry)
@@ -127,7 +128,9 @@ def test_external_industry_numbers_have_at_most_one_decimal_place():
 
     assert "12.3 / 100" in state_text
     assert "45.7" in state_text
+    assert "6.8" in state_text
     assert "1.2" in state_text
+    assert "Произведено" in state_text
     assert "storage_capacity = 100.0" in settings_text
     resource_row = next(
         line for line in state_text.splitlines() if "Железо [iron]" in line
@@ -166,6 +169,31 @@ def test_arbitrary_resource_roundtrips_without_a_global_catalog_entry():
     assert restored.stage is IndustrialStage.STEAM
     assert restored.stockpile == 25
     assert parsed.resource_demands[custom] == 20
+
+
+def test_legacy_four_column_resource_state_remains_readable() -> None:
+    industry = make_basic_bundle().industry
+    industry.register_resource(
+        ResourceType.IRON,
+        stockpile=25,
+        storage_capacity=100,
+    )
+    snapshot = "\n".join(
+        (
+            industry.render_pretty(),
+            "СОСТОЯНИЕ РЕСУРСОВ",
+            "Ресурс | Склад | Добыто | Дефицит",
+            "------ | ----- | ------ | -------",
+            "Железо [iron] | 25 / 100 | 12 | 3",
+            industry.render_configuration(),
+        )
+    )
+
+    parsed = IndustrialStats.from_stats_text(snapshot)
+
+    assert parsed.last_extracted[ResourceType.IRON] == 12
+    assert parsed.last_produced[ResourceType.IRON] == 0
+    assert parsed.resource_shortages[ResourceType.IRON] == 3
 
 
 def test_toml_storage_capacity_overrides_the_state_snapshot() -> None:
@@ -225,6 +253,10 @@ def test_toml_resource_registry_ignores_obsolete_state_rows() -> None:
         ResourceType.COPPER: 12,
         ResourceType.ALUMINUM: 9,
     }
+    old_industry.last_produced = {
+        ResourceType.COPPER: 7,
+        ResourceType.ALUMINUM: 6,
+    }
     old_industry.resource_shortages = {
         ResourceType.COPPER: 3,
         ResourceType.ALUMINUM: 4,
@@ -257,6 +289,8 @@ def test_toml_resource_registry_ignores_obsolete_state_rows() -> None:
     )
     assert parsed.last_extracted[ResourceType.COPPER] == 12
     assert ResourceType.ALUMINUM not in parsed.last_extracted
+    assert parsed.last_produced[ResourceType.COPPER] == 7
+    assert ResourceType.ALUMINUM not in parsed.last_produced
     assert parsed.resource_shortages[ResourceType.COPPER] == 3
     assert ResourceType.ALUMINUM not in parsed.resource_shortages
 

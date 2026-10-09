@@ -159,6 +159,9 @@ class IndustrialStats(StatsBase):
     last_extracted: dict[ResourceType, float] = pydantic.Field(
         default_factory=dict
     )
+    last_produced: dict[ResourceType, float] = pydantic.Field(
+        default_factory=dict
+    )
     last_extraction_diagnostics: list[ExtractionDiagnostic] = pydantic.Field(
         default_factory=list,
         exclude=True,
@@ -390,12 +393,14 @@ class IndustrialStats(StatsBase):
         group_lines = render_group_state_table(
             active,
             self.last_extracted,
+            self.last_produced,
             self.resource_shortages,
         )
         resource_lines = (
             render_resource_state_table(
                 active,
                 self.last_extracted,
+                self.last_produced,
                 self.resource_shortages,
             )
             if active
@@ -939,6 +944,7 @@ class IndustrialStats(StatsBase):
         stats.effects = configuration.effects
         stats.resource_demands = configuration.demands
         stats.last_extracted = configuration.extracted
+        stats.last_produced = configuration.produced
         stats.resource_shortages = configuration.shortages
         stats.validate_industry_configuration()
         return stats
