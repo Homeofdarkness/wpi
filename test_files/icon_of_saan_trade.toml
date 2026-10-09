@@ -1,0 +1,7 @@
+schema_version = 2
+
+[[deals]]
+id = "icon_of_saan_sale"
+direction = "export"
+delivery = { target = "resource:icon_of_saan", amount_per_month = 5.0 }
+payment = { target = "money", amount_per_month = 10.0 }

@@ -160,6 +160,7 @@ class TurnEngine:
         self._execute_detailed_trade(TradeDirection.IMPORT)
         self._resolve_industrial_resources()
         self._apply_industrial_effects(EffectPhase.AFTER_RESOURCES)
+        self.state.inner_politics.recalculate_derived_fields()
         self._calculate_population(results)
         self._calculate_industry()
         self._apply_industrial_effects(EffectPhase.AFTER_INDUSTRY)
@@ -421,17 +422,17 @@ class TurnEngine:
             operation.target_key: (
                 round(
                     ordinary_workers
-                    * capacities[operation.target_key]
+                    * capacities.get(operation.target_key, 0.0)
                     / total_capacity
                 ),
                 round(
                     specialist_workers
-                    * capacities[operation.target_key]
+                    * capacities.get(operation.target_key, 0.0)
                     / total_capacity
                 ),
                 round(
                     forced_workers
-                    * capacities[operation.target_key]
+                    * capacities.get(operation.target_key, 0.0)
                     / total_capacity
                 ),
             )

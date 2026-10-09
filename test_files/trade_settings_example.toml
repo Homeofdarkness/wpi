@@ -1,14 +1,22 @@
 schema_version = 2
 
+# Бартерный импорт: страна отдаёт медь и получает пресную воду.
 [[deals]]
 id = "water_for_copper"
 direction = "import"
 delivery = { target = "resource:fresh_water", amount_per_month = 300.0 }
 payment = { target = "resource:copper", amount_per_month = 50.0 }
 
+# Денежный импорт сразу всей группы строительных материалов.
 [[deals]]
 id = "construction_purchase"
 direction = "import"
 delivery = { target = "group:construction", amount_per_month = 180.0 }
 payment = { target = "money", amount_per_month = 100.0 }
 
+# Денежный экспорт нефти.
+[[deals]]
+id = "oil_export"
+direction = "export"
+delivery = { target = "resource:oil", amount_per_month = 120.0 }
+payment = { target = "money", amount_per_month = 90.0 }

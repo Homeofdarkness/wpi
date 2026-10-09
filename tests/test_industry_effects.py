@@ -332,6 +332,49 @@ def test_stability_effect_and_policy_use_one_turn_start_snapshot() -> None:
     assert bundle.economy.stability == 80
 
 
+def test_social_primary_effect_refreshes_decline_in_the_same_turn() -> None:
+    affected = make_basic_bundle(budget=1_000_000)
+    control = make_basic_bundle(budget=1_000_000)
+    icon = ResourceType("icon_of_saan")
+    for bundle in (affected, control):
+        bundle.economy.decrement_coefficient = 0
+        bundle.inner_politics.grace_of_the_highest = 20
+        bundle.inner_politics.departure_from_truths = 50
+        bundle.inner_politics.recalculate_derived_fields()
+        bundle.industry.register_resource(
+            ResourceRegistration(
+                resource=icon,
+                name="Образок Саан",
+                group=ExtractionGroup.UNIQUE,
+                stockpile=60,
+                storage_capacity=100,
+                consumption_per_month=10,
+            )
+        )
+        bundle.industry.effects = []
+    affected.industry.effects = [
+        IndustrialEffect(
+            id="icon_of_saan_grace",
+            dependencies=[EffectDependency(resource=icon)],
+            targets=["grace_of_the_highest"],
+            formula="2 * min(resources.icon_of_saan.surplus, 1)",
+        )
+    ]
+
+    affected_report = make_engine(affected, seed=141).run()
+    control_report = make_engine(control, seed=141).run()
+
+    assert affected.inner_politics.grace_of_the_highest == 22
+    assert affected.inner_politics.society_decline < (
+        control.inner_politics.society_decline
+    )
+    assert affected_report.population_growth is not None
+    assert control_report.population_growth is not None
+    assert affected_report.population_growth.social_decline_factor > (
+        control_report.population_growth.social_decline_factor
+    )
+
+
 def test_qualified_targets_distinguish_same_name_in_different_sections():
     bundle = make_basic_bundle(budget=1_000_000)
     configure_fresh_water_shortage(bundle)
